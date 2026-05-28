@@ -57,3 +57,15 @@ class DealCreate(BaseModel):
     shipping_cost: float = Field(0, description="运费（元）")
     platform_fee: float = Field(0, description="平台手续费")
     notes: str = Field("", description="备注")
+
+
+class RegisterRequest(BaseModel):
+    """注册请求"""
+    email: str = Field(..., min_length=3, max_length=128, description="邮箱")
+    password: str = Field(..., min_length=6, max_length=128, description="密码")
+
+
+class LoginRequest(BaseModel):
+    """登录请求"""
+    email: str = Field(..., description="邮箱")
+    password: str = Field(..., description="密码")

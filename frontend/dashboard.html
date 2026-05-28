@@ -55,7 +55,8 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
 
 <div class="header">
   <h1>🐟 闲鱼 AI 智能助手</h1>
-  <span style="font-size: 12px; opacity:.7">v0.4</span>
+  <span style="font-size: 12px; opacity:.7">v0.5</span>
+  <span id="userInfo" style="font-size:12px;opacity:.9"></span>
   <div style="margin-left:auto;font-size:12px;opacity:.7" id="headerStatus">加载中...</div>
 </div>
 
@@ -242,6 +243,61 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
 const API = '/api';
 let currentTab = 'monitor';
 let pollTimer = null;
+
+// === 认证 ===
+function getToken() { return localStorage.getItem('token') || ''; }
+function isLoggedIn() { return !!getToken(); }
+
+// 包装 fetch，自动加 Authorization header
+async function authFetch(url, opts = {}) {
+  const token = getToken();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  if (opts.body && typeof opts.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const r = await fetch(url, { ...opts, headers });
+  if (r.status === 401) {
+    // Token 过期，尝试刷新
+    const refresh = localStorage.getItem('refresh_token');
+    if (refresh) {
+      try {
+        const rr = await fetch(API + '/auth/refresh', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({refresh_token: refresh})
+        });
+        if (rr.ok) {
+          const data = await rr.json();
+          localStorage.setItem('token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+          headers['Authorization'] = 'Bearer ' + data.access_token;
+          return fetch(url, { ...opts, headers });
+        }
+      } catch(e) {}
+    }
+    localStorage.clear();
+    location.href = '/login';
+    throw new Error('请重新登录');
+  }
+  return r;
+}
+
+function logout() {
+  localStorage.clear();
+  location.href = '/';
+}
+
+async function loadUserInfo() {
+  if (!isLoggedIn()) return;
+  try {
+    const r = await authFetch(API + '/auth/me');
+    if (r.ok) {
+      const user = await r.json();
+      const el = document.getElementById('userInfo');
+      if (el) el.innerHTML = user.email + ' · <span class="tag tag-orange">' + user.tier_name + '</span> · <a href="#" onclick="logout()" style="color:#fff;opacity:.7">退出</a>';
+    }
+  } catch(e) {}
+}
 
 // === Tab 切换 ===
 function switchTab(name) {
@@ -601,8 +657,16 @@ async function addDeal() {
 
 // === 初始化 ===
 async function init() {
+  // 无 token 跳转登录
+  if (!isLoggedIn() && !location.pathname.includes('/login')) {
+    // 允许游客访问 Landing
+    if (location.pathname === '/' || location.pathname === '') return;
+    location.href = '/login';
+    return;
+  }
+  loadUserInfo();
   try {
-    const health = await fetch(API + '/health').then(r => r.json());
+    const health = await authFetch(API + '/health').then(r => r.json());
     document.getElementById('headerStatus').textContent = 'API: ' + (health.status === 'ok' ? '✅ 在线' : '❌ 异常');
   } catch(e) {
     document.getElementById('headerStatus').textContent = 'API: ⚠️ 连接失败';

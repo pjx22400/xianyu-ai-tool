@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>闲鱼 AI 智能助手 — 让闲鱼卖货更简单</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #333; background: #fff; }
+section { padding: 80px 24px; max-width: 1100px; margin: 0 auto; }
+.hero { background: linear-gradient(135deg, #ff5000, #ff7a45); color: #fff; text-align: center; padding: 100px 24px 120px; }
+.hero h1 { font-size: 48px; margin-bottom: 16px; }
+.hero p { font-size: 20px; opacity: .9; margin-bottom: 40px; max-width: 600px; margin-left: auto; margin-right: auto; }
+.btn { display: inline-block; padding: 14px 40px; border-radius: 8px; font-size: 18px; font-weight: 600; text-decoration: none; cursor: pointer; transition: .2s; border: none; }
+.btn-light { background: #fff; color: #ff5000; }
+.btn-light:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,.15); }
+.btn-primary { background: #ff5000; color: #fff; }
+.btn-primary:hover { background: #e04800; }
+h2 { font-size: 32px; margin-bottom: 24px; text-align: center; }
+.features { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 32px; }
+.feature { text-align: center; padding: 40px 24px; border-radius: 12px; background: #fafafa; transition: .2s; }
+.feature:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+.feature .icon { font-size: 48px; margin-bottom: 16px; }
+.feature h3 { font-size: 20px; margin-bottom: 8px; }
+.feature p { color: #666; font-size: 14px; line-height: 1.6; }
+.pricing { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.plan { border: 2px solid #eee; border-radius: 12px; padding: 40px 32px; text-align: center; transition: .2s; }
+.plan:hover { border-color: #ff5000; }
+.plan.pro { border-color: #ff5000; background: #fff8f6; }
+.plan h3 { font-size: 24px; margin-bottom: 12px; }
+.plan .price { font-size: 48px; font-weight: 700; color: #ff5000; margin-bottom: 8px; }
+.plan .price span { font-size: 18px; color: #999; font-weight: 400; }
+.plan ul { list-style: none; margin: 24px 0; text-align: left; }
+.plan li { padding: 8px 0; font-size: 14px; color: #666; }
+.plan li::before { content: "✓ "; color: #52c41a; font-weight: 700; }
+.plan li.no::before { content: "✗ "; color: #ccc; }
+.cta { text-align: center; background: #fafafa; }
+.cta p { color: #666; margin-bottom: 24px; font-size: 18px; }
+.footer { text-align: center; padding: 40px; color: #999; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>🐟 闲鱼 AI 智能助手</h1>
+  <p>自动监控、智能回复、利润追踪 — 一个人管 10 个闲鱼号</p>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+    <a href="/login" class="btn btn-light">免费开始使用</a>
+    <a href="#pricing" class="btn" style="background:transparent;border:2px solid #fff;color:#fff">查看定价</a>
+  </div>
+</div>
+
+<section>
+  <h2>为什么闲鱼卖家都在用？</h2>
+  <div class="features">
+    <div class="feature">
+      <div class="icon">🔍</div>
+      <h3>智能监控</h3>
+      <p>设置关键词，自动扫描新上架和降价商品，第一时间发现捡漏机会，比别人快一步</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🤖</div>
+      <h3>AI 自动回复</h3>
+      <p>买家消息秒回，内置砍价策略和成交话术，减少被砍价，提高成交率</p>
+    </div>
+    <div class="feature">
+      <div class="icon">👥</div>
+      <h3>多账号管理</h3>
+      <p>一个平台管理多个闲鱼号，独立监控、独立回复，互不干扰</p>
+    </div>
+    <div class="feature">
+      <div class="icon">🔄</div>
+      <h3>自动擦亮</h3>
+      <p>定时刷新商品保持曝光，不用每天手动点点点</p>
+    </div>
+    <div class="feature">
+      <div class="icon">💰</div>
+      <h3>利润追踪</h3>
+      <p>记录每笔交易的进价卖价和成本，实时看净利润和利润率</p>
+    </div>
+    <div class="feature">
+      <div class="icon">📱</div>
+      <h3>订单通知</h3>
+      <p>买家付款、订单状态变更实时推送，不用时刻盯着闲鱼</p>
+    </div>
+  </div>
+</section>
+
+<section id="pricing">
+  <h2>简单定价，按需选择</h2>
+  <div class="pricing">
+    <div class="plan">
+      <h3>🆓 免费版</h3>
+      <div class="price">¥0<span>/月</span></div>
+      <ul>
+        <li>3 个监控关键词</li>
+        <li>1 个闲鱼账号</li>
+        <li>24 小时自动擦亮</li>
+        <li>基础商品监控</li>
+        <li class="no">AI 智能回复</li>
+        <li class="no">利润追踪</li>
+      </ul>
+      <a href="/login" class="btn btn-primary" style="display:block">免费开始</a>
+    </div>
+    <div class="plan pro">
+      <h3>🚀 Pro 版</h3>
+      <div class="price">¥29<span>/月</span></div>
+      <div style="color:#999;font-size:14px;margin-top:-8px">或 ¥199/年（省 31%）</div>
+      <ul>
+        <li>无限监控关键词</li>
+        <li>10 个闲鱼账号</li>
+        <li>1 小时自动擦亮</li>
+        <li>AI 智能议价回复</li>
+        <li>利润追踪看板</li>
+        <li>订单实时通知</li>
+      </ul>
+      <a href="/login" class="btn btn-primary" style="display:block">升级 Pro</a>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>每天花 5 分钟，剩下的交给 AI</h2>
+  <p>已有 100+ 闲鱼卖家在使用</p>
+  <a href="/login" class="btn btn-primary">免费开始使用</a>
+</section>
+
+<div class="footer">
+  © 2026 闲鱼 AI 智能助手 · 不是闲鱼官方产品 · 仅帮助卖家提高效率
+</div>
+
+</body>
+</html>

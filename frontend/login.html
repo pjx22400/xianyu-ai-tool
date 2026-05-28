@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 — 闲鱼 AI 智能助手</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: linear-gradient(135deg, #ff5000, #ff7a45); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.card { background: #fff; border-radius: 16px; padding: 40px; width: 100%; max-width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.card h1 { font-size: 28px; text-align: center; margin-bottom: 8px; }
+.card .sub { text-align: center; color: #999; font-size: 14px; margin-bottom: 32px; }
+.tabs { display: flex; margin-bottom: 24px; border-bottom: 2px solid #eee; }
+.tab { flex: 1; text-align: center; padding: 12px; cursor: pointer; font-size: 16px; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: .2s; }
+.tab.active { color: #ff5000; border-bottom-color: #ff5000; font-weight: 600; }
+.form { display: none; }
+.form.active { display: block; }
+label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: #333; }
+input { width: 100%; padding: 12px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; margin-bottom: 16px; transition: .2s; }
+input:focus { outline: none; border-color: #ff5000; box-shadow: 0 0 0 3px rgba(255,80,0,.1); }
+.btn { width: 100%; padding: 14px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; transition: .2s; }
+.btn-primary { background: #ff5000; color: #fff; }
+.btn-primary:hover { background: #e04800; }
+.btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+.error { background: #fff2f0; color: #ff4d4f; padding: 10px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; display: none; }
+.error.show { display: block; }
+.success { background: #f6ffed; color: #52c41a; padding: 10px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; display: none; }
+.success.show { display: block; }
+.back { display: block; text-align: center; margin-top: 20px; color: #999; font-size: 14px; text-decoration: none; }
+.back:hover { color: #ff5000; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🐟 闲鱼 AI</h1>
+  <p class="sub">智能管理你的闲鱼生意</p>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('login')">登录</div>
+    <div class="tab" onclick="switchTab('register')">注册</div>
+  </div>
+
+  <div id="errorBox" class="error"></div>
+  <div id="successBox" class="success"></div>
+
+  <div id="loginForm" class="form active">
+    <label>邮箱</label>
+    <input id="loginEmail" type="email" placeholder="your@email.com" autocomplete="email">
+    <label>密码</label>
+    <input id="loginPass" type="password" placeholder="至少 6 位" autocomplete="current-password">
+    <button class="btn btn-primary" onclick="doLogin()">登 录</button>
+  </div>
+
+  <div id="registerForm" class="form">
+    <label>邮箱</label>
+    <input id="regEmail" type="email" placeholder="your@email.com" autocomplete="email">
+    <label>密码</label>
+    <input id="regPass" type="password" placeholder="至少 6 位" autocomplete="new-password">
+    <button class="btn btn-primary" onclick="doRegister()">注 册</button>
+  </div>
+
+  <a href="/" class="back">← 返回首页</a>
+</div>
+
+<script>
+const API = '/api/auth';
+
+function showError(msg) {
+  const e = document.getElementById('errorBox');
+  e.textContent = msg; e.classList.add('show');
+  setTimeout(() => e.classList.remove('show'), 4000);
+}
+function showSuccess(msg) {
+  const e = document.getElementById('successBox');
+  e.textContent = msg; e.classList.add('show');
+  setTimeout(() => e.classList.remove('show'), 3000);
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.form').forEach(f => f.classList.remove('active'));
+  if (tab === 'login') {
+    document.querySelectorAll('.tab')[0].classList.add('active');
+    document.getElementById('loginForm').classList.add('active');
+  } else {
+    document.querySelectorAll('.tab')[1].classList.add('active');
+    document.getElementById('registerForm').classList.add('active');
+  }
+}
+
+async function doRegister() {
+  const email = document.getElementById('regEmail').value.trim();
+  const password = document.getElementById('regPass').value;
+  if (!email || !password) return showError('请填写邮箱和密码');
+  if (password.length < 6) return showError('密码至少 6 位');
+
+  const btn = document.querySelector('#registerForm .btn');
+  btn.disabled = true; btn.textContent = '注册中...';
+  try {
+    const r = await fetch(API + '/register', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || '注册失败');
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    showSuccess('注册成功！正在跳转...');
+    setTimeout(() => location.href = '/dashboard', 800);
+  } catch(e) {
+    showError(e.message);
+  }
+  btn.disabled = false; btn.textContent = '注 册';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!email || !password) return showError('请填写邮箱和密码');
+
+  const btn = document.querySelector('#loginForm .btn');
+  btn.disabled = true; btn.textContent = '登录中...';
+  try {
+    const r = await fetch(API + '/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || '登录失败');
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    showSuccess('登录成功！');
+    setTimeout(() => location.href = '/dashboard', 500);
+  } catch(e) {
+    showError(e.message);
+  }
+  btn.disabled = false; btn.textContent = '登 录';
+}
+
+// 回车提交
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+document.getElementById('regPass').addEventListener('keydown', e => { if (e.key==='Enter') doRegister(); });
+</script>
+</body>
+</html>
