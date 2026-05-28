@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # 加载 .env 文件
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 
 class Config:
@@ -29,9 +29,9 @@ class Config:
     DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite+aiosqlite:///{DATA_DIR}/xianyu.db")
 
     # --- 飞书通知 ---
-    FEISHU_WEBHOOK = os.getenv("FEISHU_WEBHOOK", "")  # 飞书机器人 webhook URL
     FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
     FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
+    FEISHU_USER_OPEN_ID = os.getenv("FEISHU_USER_OPEN_ID", "")
 
     # --- AI ---
     DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
