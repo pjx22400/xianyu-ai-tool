@@ -5,7 +5,7 @@ set -e
 # 确保目录存在
 mkdir -p /app/data /app/logs
 
-echo "=== 闲鱼 AI 助手 v0.3 ==="
+echo "=== 闲鱼 AI 助手 v0.4 ==="
 echo "启动时间: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "日志目录: /app/logs/"
 echo "================================================"

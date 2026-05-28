@@ -47,3 +47,13 @@ class KeywordCreate(BaseModel):
     keyword: str
     min_price: Optional[float] = None
     max_price: Optional[float] = None
+
+
+class DealCreate(BaseModel):
+    """记录一笔交易"""
+    item_title: str = Field(..., description="商品名称")
+    cost_price: float = Field(0, description="进货价（元）")
+    sell_price: float = Field(..., description="卖出价（元）")
+    shipping_cost: float = Field(0, description="运费（元）")
+    platform_fee: float = Field(0, description="平台手续费")
+    notes: str = Field("", description="备注")

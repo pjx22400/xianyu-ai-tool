@@ -16,7 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import config
 from src.database import init_db, add_keyword, get_keywords, delete_keyword, toggle_keyword, get_items, close_db
-from src.models import KeywordCreate, MonitorKeyword
+from src.database import add_deal, get_deals, get_profit_summary
+from src.models import KeywordCreate, MonitorKeyword, DealCreate
 from src.monitor import Monitor
 from src.xianyu_ws import XianyuWebSocket
 from src.reply_agent import ReplyAgent
@@ -408,6 +409,53 @@ async def trigger_refresh():
         raise HTTPException(400, "自动擦亮未启动，请先配置账号")
     result = await auto_refresher.refresh_all([])
     return result
+
+
+# ==================== 静态文件 ====================
+
+
+# ==================== 利润追踪 ====================
+
+@app.get("/api/deals/summary")
+async def deals_summary():
+    return await get_profit_summary()
+
+
+@app.get("/api/deals")
+async def list_deals(limit: int = 50):
+    return await get_deals(limit)
+
+
+@app.post("/api/deals")
+async def create_deal(deal: DealCreate):
+    id_ = await add_deal(
+        item_title=deal.item_title,
+        sell_price=deal.sell_price,
+        cost_price=deal.cost_price,
+        shipping_cost=deal.shipping_cost,
+        platform_fee=deal.platform_fee,
+        notes=deal.notes,
+    )
+    return {"ok": True, "id": id_}
+
+
+# ==================== 客服统计 ====================
+
+@app.get("/api/cs/stats")
+async def cs_stats():
+    if reply_agent is None:
+        return {"error": "客服未启动"}
+    s = reply_agent.stats
+    return {
+        "total_replies": s.total,
+        "price_negotiation": s.price,
+        "deal_intent": s.deal,
+        "greeting": s.greeting,
+        "tech_questions": s.tech,
+        "shipping": s.shipping,
+        "other": s.other,
+        "active_conversations": len(reply_agent._conversations),
+    }
 
 
 # ==================== 静态文件 ====================

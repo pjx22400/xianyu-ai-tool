@@ -65,6 +65,20 @@ async def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_items_keyword ON items(keyword);
         CREATE INDEX IF NOT EXISTS idx_items_last_seen ON items(last_seen);
+
+        CREATE TABLE IF NOT EXISTS deals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_title TEXT NOT NULL,
+            cost_price REAL DEFAULT 0,
+            sell_price REAL NOT NULL,
+            shipping_cost REAL DEFAULT 0,
+            platform_fee REAL DEFAULT 0,
+            profit REAL GENERATED ALWAYS AS (sell_price - cost_price - shipping_cost - platform_fee) STORED,
+            deal_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            notes TEXT DEFAULT ''
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_deals_date ON deals(deal_date);
     """)
     await db.commit()
 
@@ -163,3 +177,44 @@ async def get_latest_scan(keyword: str) -> Optional[str]:
         (keyword,),
     )
     return row[0]["ts"] if row and row[0]["ts"] else None
+
+
+# --- 利润追踪 CRUD ---
+
+async def add_deal(item_title: str, sell_price: float, cost_price: float = 0,
+                   shipping_cost: float = 0, platform_fee: float = 0,
+                   notes: str = "") -> int:
+    db = await get_db()
+    cursor = await db.execute(
+        "INSERT INTO deals (item_title, cost_price, sell_price, shipping_cost, platform_fee, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (item_title, cost_price, sell_price, shipping_cost, platform_fee, notes),
+    )
+    await db.commit()
+    return cursor.lastrowid
+
+
+async def get_deals(limit: int = 50) -> list[dict]:
+    db = await get_db()
+    rows = await db.execute_fetchall(
+        "SELECT * FROM deals ORDER BY deal_date DESC LIMIT ?", (limit,)
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_profit_summary() -> dict:
+    """利润汇总"""
+    db = await get_db()
+    row = await db.execute_fetchall("""
+        SELECT
+            COUNT(*) as total_deals,
+            COALESCE(SUM(sell_price), 0) as total_revenue,
+            COALESCE(SUM(cost_price), 0) as total_cost,
+            COALESCE(SUM(shipping_cost), 0) as total_shipping,
+            COALESCE(SUM(platform_fee), 0) as total_fee,
+            COALESCE(SUM(profit), 0) as total_profit
+        FROM deals
+    """)
+    d = dict(row[0]) if row else {}
+    d["profit_margin"] = round((d.get("total_profit", 0) / d.get("total_revenue", 1)) * 100, 1) if d.get("total_revenue") else 0
+    return d

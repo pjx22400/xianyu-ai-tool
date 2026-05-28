@@ -55,13 +55,14 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
 
 <div class="header">
   <h1>🐟 闲鱼 AI 智能助手</h1>
-  <span style="font-size: 12px; opacity:.7">v0.3</span>
+  <span style="font-size: 12px; opacity:.7">v0.4</span>
   <div style="margin-left:auto;font-size:12px;opacity:.7" id="headerStatus">加载中...</div>
 </div>
 
 <div class="tabs">
   <div class="tab active" onclick="switchTab('monitor')">📊 商品监控</div>
   <div class="tab" onclick="switchTab('chat')">💬 智能客服</div>
+  <div class="tab" onclick="switchTab('profit')">💰 利润追踪</div>
   <div class="tab" onclick="switchTab('accounts')">👤 账号与运营</div>
 </div>
 
@@ -106,12 +107,58 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
         <button class="btn btn-danger" id="csStopBtn" onclick="stopCS()">停止</button>
       </div>
     </div>
+    <div id="csStatsRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #f0f0f0">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:13px">
+        <div>💬 回复 <strong id="csStatTotal">0</strong></div>
+        <div>💰 议价 <strong id="csStatPrice">0</strong></div>
+        <div>🤝 成交 <strong id="csStatDeal" style="color:#52c41a">0</strong></div>
+        <div>👋 招呼 <strong id="csStatGreet">0</strong></div>
+        <div>📦 物流 <strong id="csStatShip">0</strong></div>
+        <div>📐 咨询 <strong id="csStatTech">0</strong></div>
+        <div>📊 会话 <strong id="csStatConv">0</strong></div>
+      </div>
+    </div>
   </div>
 
   <div class="card">
     <h3>📨 实时消息（最近50条）</h3>
     <div class="msg-list" id="msgList">暂无消息</div>
     <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="refreshMessages()">刷新</button>
+  </div>
+</div>
+
+<!-- ================== 利润追踪 Tab ================== -->
+<div id="profit" class="panel">
+  <div class="stats" id="profitStats">
+    <div class="stat-card"><div class="value" style="color:#52c41a" id="profitTotal">¥0</div><div class="label">累计利润</div></div>
+    <div class="stat-card"><div class="value" id="profitRevenue">¥0</div><div class="label">总营收</div></div>
+    <div class="stat-card"><div class="value" id="profitCost">¥0</div><div class="label">总成本</div></div>
+    <div class="stat-card"><div class="value" id="profitMargin">0%</div><div class="label">利润率</div></div>
+    <div class="stat-card"><div class="value" id="profitDeals">0</div><div class="label">成交笔数</div></div>
+  </div>
+
+  <div class="card">
+    <h3>✏️ 记录一笔交易</h3>
+    <div class="flex" style="margin-bottom:8px">
+      <input id="dealTitle" placeholder="商品名称" style="flex:2">
+      <input id="dealCost" placeholder="进货价" type="number" step="0.01" style="width:110px">
+      <input id="dealSell" placeholder="卖出价" type="number" step="0.01" style="width:110px">
+      <input id="dealShip" placeholder="运费" type="number" step="0.01" style="width:90px" value="0">
+      <input id="dealFee" placeholder="手续费" type="number" step="0.01" style="width:90px" value="0">
+    </div>
+    <div class="flex">
+      <input id="dealNote" placeholder="备注（可选）" style="flex:1">
+      <button class="btn btn-primary" onclick="addDeal()">记录交易</button>
+    </div>
+    <div style="font-size:11px;color:#999;margin-top:6px">利润 = 卖出价 - 进货价 - 运费 - 手续费，自动计算</div>
+  </div>
+
+  <div class="card">
+    <h3>📜 交易记录</h3>
+    <table>
+      <thead><tr><th>商品</th><th>进货价</th><th>卖出价</th><th>运费</th><th>手续费</th><th>利润</th><th>日期</th></tr></thead>
+      <tbody id="dealTable"><tr><td colspan="7" style="text-align:center;color:#999">暂无交易记录</td></tr></tbody>
+    </table>
   </div>
 </div>
 
@@ -200,10 +247,11 @@ let pollTimer = null;
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,accounts:3}[name]})`).classList.add('active');
+  document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,profit:3,accounts:4}[name]})`).classList.add('active');
   document.getElementById(name).classList.add('active');
   currentTab = name;
   if (name === 'chat') loadCSStatus();
+  if (name === 'profit') loadProfit();
   if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); }
 }
 
@@ -287,6 +335,23 @@ async function loadCSStatus() {
       : '未启动';
     document.getElementById('csStartBtn').style.display = running ? 'none' : '';
     document.getElementById('csStopBtn').style.display = running ? '' : 'none';
+
+    // 客服统计
+    if (running) {
+      try {
+        const stats = await fetch(API + '/cs/stats').then(r => r.json());
+        if (!stats.error) {
+          document.getElementById('csStatsRow').style.display = '';
+          document.getElementById('csStatTotal').textContent = stats.total_replies || 0;
+          document.getElementById('csStatPrice').textContent = stats.price_negotiation || 0;
+          document.getElementById('csStatDeal').textContent = stats.deal_intent || 0;
+          document.getElementById('csStatGreet').textContent = stats.greeting || 0;
+          document.getElementById('csStatShip').textContent = stats.shipping || 0;
+          document.getElementById('csStatTech').textContent = stats.tech_questions || 0;
+          document.getElementById('csStatConv').textContent = stats.active_conversations || 0;
+        }
+      } catch(e) { /* stats not critical */ }
+    }
 
     if (msgs.length === 0) {
       document.getElementById('msgList').innerHTML = '<div style="color:#999;text-align:center;padding:20px">暂无消息</div>';
@@ -476,22 +541,80 @@ async function triggerRefresh() {
   btn.disabled = false;
 }
 
+// === 利润追踪 ===
+
+async function loadProfit() {
+  try {
+    const [summary, deals] = await Promise.all([
+      fetch(API + '/deals/summary').then(r => r.json()),
+      fetch(API + '/deals').then(r => r.json()),
+    ]);
+    document.getElementById('profitTotal').textContent = '¥' + (summary.total_profit || 0).toFixed(0);
+    document.getElementById('profitRevenue').textContent = '¥' + (summary.total_revenue || 0).toFixed(0);
+    document.getElementById('profitCost').textContent = '¥' + (summary.total_cost || 0).toFixed(0);
+    document.getElementById('profitMargin').textContent = (summary.profit_margin || 0) + '%';
+    document.getElementById('profitDeals').textContent = summary.total_deals || 0;
+
+    const tbody = document.getElementById('dealTable');
+    if (!deals.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999">暂无交易记录</td></tr>';
+      return;
+    }
+    tbody.innerHTML = deals.map(d => {
+      const p = d.profit || 0;
+      const color = p >= 0 ? '#52c41a' : '#ff4d4f';
+      const date = d.deal_date ? d.deal_date.slice(0, 10) : '--';
+      return `<tr>
+        <td>${d.item_title||''}${d.notes ? ' <span style="color:#999;font-size:11px">'+d.notes+'</span>' : ''}</td>
+        <td>¥${(d.cost_price||0).toFixed(0)}</td>
+        <td>¥${(d.sell_price||0).toFixed(0)}</td>
+        <td>¥${(d.shipping_cost||0).toFixed(0)}</td>
+        <td>¥${(d.platform_fee||0).toFixed(0)}</td>
+        <td style="color:${color};font-weight:600">¥${p.toFixed(0)}</td>
+        <td style="font-size:11px;color:#999">${date}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function addDeal() {
+  const title = document.getElementById('dealTitle').value.trim();
+  const sell = parseFloat(document.getElementById('dealSell').value);
+  if (!title || isNaN(sell)) { alert('请填写商品名称和卖出价'); return; }
+  const body = {
+    item_title: title,
+    sell_price: sell,
+    cost_price: parseFloat(document.getElementById('dealCost').value) || 0,
+    shipping_cost: parseFloat(document.getElementById('dealShip').value) || 0,
+    platform_fee: parseFloat(document.getElementById('dealFee').value) || 0,
+    notes: document.getElementById('dealNote').value.trim(),
+  };
+  await fetch(API + '/deals', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  document.getElementById('dealTitle').value = '';
+  document.getElementById('dealCost').value = '';
+  document.getElementById('dealSell').value = '';
+  document.getElementById('dealShip').value = '0';
+  document.getElementById('dealFee').value = '0';
+  document.getElementById('dealNote').value = '';
+  loadProfit();
+}
+
 // === 初始化 ===
 async function init() {
   try {
     const health = await fetch(API + '/health').then(r => r.json());
     document.getElementById('headerStatus').textContent = 'API: ' + (health.status === 'ok' ? '✅ 在线' : '❌ 异常');
-    // 健康检查里也有 refresh_running
   } catch(e) {
     document.getElementById('headerStatus').textContent = 'API: ⚠️ 连接失败';
   }
   loadMonitor();
+  loadProfit();
 }
 init();
-// 每 30 秒刷新一次
 setInterval(() => {
   if (currentTab === 'monitor') loadMonitor();
   if (currentTab === 'chat') loadCSStatus();
+  if (currentTab === 'profit') loadProfit();
 }, 30000);
 </script>
 </body>
