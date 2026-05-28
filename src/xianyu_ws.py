@@ -140,6 +140,8 @@ class XianyuWebSocket:
         self._handlers: list[Handler] = []
         self._order_handlers: list[Handler] = []
         self._http = httpx.AsyncClient(timeout=30)
+        for k, v in self.cookies.items():
+            self._http.cookies.set(k, v, domain=".goofish.com")
 
     # --- Token ---
 
@@ -162,7 +164,15 @@ class XianyuWebSocket:
                 data={"data": data_val},
             )
             result = resp.json()
-            return result["data"]["accessToken"]
+            raw_data = result.get("data", {})
+            if isinstance(raw_data, str):
+                raw_data = json.loads(raw_data)
+            if "accessToken" in raw_data:
+                return raw_data["accessToken"]
+            ret = result.get("ret", [])
+            raise RuntimeError(f"Token API异常: {ret}")
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f"获取 Token 失败: {e}")
 
