@@ -136,6 +136,20 @@ async def init_db():
         CREATE INDEX IF NOT EXISTS idx_cs_chat ON cs_messages(chat_id);
         CREATE INDEX IF NOT EXISTS idx_cs_time ON cs_messages(msg_time);
         CREATE INDEX IF NOT EXISTS idx_cs_user ON cs_messages(user_id);
+
+        CREATE TABLE IF NOT EXISTS orders (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id),
+            plan TEXT NOT NULL DEFAULT 'pro_monthly',
+            amount REAL NOT NULL,
+            status TEXT DEFAULT 'pending',
+            payment_method TEXT DEFAULT 'mock',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            paid_at TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
     """)
     await db.commit()
 
@@ -415,3 +429,101 @@ async def clear_cs_messages(user_id: str):
     db = await get_db()
     await db.execute("DELETE FROM cs_messages WHERE user_id = ?", (user_id,))
     await db.commit()
+
+
+# ==================== 订单/订阅 CRUD ====================
+
+async def create_order(order_id: str, user_id: str, plan: str,
+                       amount: float, payment_method: str = "mock") -> bool:
+    """创建订单"""
+    db = await get_db()
+    await db.execute(
+        "INSERT INTO orders (id, user_id, plan, amount, payment_method) VALUES (?, ?, ?, ?, ?)",
+        (order_id, user_id, plan, amount, payment_method),
+    )
+    await db.commit()
+    return True
+
+
+async def mark_order_paid(order_id: str) -> dict | None:
+    """标记订单已支付"""
+    db = await get_db()
+    await db.execute(
+        "UPDATE orders SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'",
+        (order_id,),
+    )
+    await db.commit()
+    rows = await db.execute_fetchall("SELECT * FROM orders WHERE id = ?", (order_id,))
+    return dict(rows[0]) if rows else None
+
+
+async def get_order(order_id: str) -> dict | None:
+    db = await get_db()
+    rows = await db.execute_fetchall("SELECT * FROM orders WHERE id = ?", (order_id,))
+    return dict(rows[0]) if rows else None
+
+
+async def get_user_orders(user_id: str, limit: int = 20) -> list[dict]:
+    db = await get_db()
+    rows = await db.execute_fetchall(
+        "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+        (user_id, limit),
+    )
+    return [dict(r) for r in rows]
+
+
+async def activate_subscription(user_id: str, plan: str, days: int) -> bool:
+    """激活订阅：升级用户 tier + 设置到期时间"""
+    from datetime import datetime, timedelta
+    db = await get_db()
+
+    # 获取当前 tier 信息
+    rows = await db.execute_fetchall(
+        "SELECT tier, tier_expires_at FROM users WHERE id = ?", (user_id,)
+    )
+    if not rows:
+        return False
+
+    current_tier = rows[0]["tier"]
+    current_expires = rows[0]["tier_expires_at"]
+
+    # 如果当前已是 Pro 且未过期，延长到期时间
+    now = datetime.utcnow()
+    if current_tier == "pro" and current_expires:
+        try:
+            exp = datetime.fromisoformat(str(current_expires))
+            if exp > now:
+                start = exp
+            else:
+                start = now
+        except Exception:
+            start = now
+    else:
+        start = now
+
+    new_expires = start + timedelta(days=days)
+    await db.execute(
+        "UPDATE users SET tier = 'pro', tier_expires_at = ? WHERE id = ?",
+        (new_expires.isoformat(), user_id),
+    )
+    await db.commit()
+    return True
+
+
+async def get_payment_stats() -> dict:
+    """管理员：收入统计"""
+    db = await get_db()
+    rows = await db.execute_fetchall("""
+        SELECT
+            COUNT(*) as total_orders,
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'paid' AND plan = 'pro_monthly' THEN 1 ELSE 0 END), 0) as monthly_subs,
+            COALESCE(SUM(CASE WHEN status = 'paid' AND plan = 'pro_yearly' THEN 1 ELSE 0 END), 0) as yearly_subs
+        FROM orders
+    """)
+    d = dict(rows[0]) if rows else {}
+    pro_users = await db.execute_fetchall(
+        "SELECT COUNT(*) as c FROM users WHERE tier = 'pro'"
+    )
+    d["active_pro_users"] = pro_users[0]["c"] if pro_users else 0
+    return d

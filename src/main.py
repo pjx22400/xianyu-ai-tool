@@ -21,13 +21,16 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.config import config
 from src.database import (
-    init_db, close_db,
+    init_db, close_db, get_db,
     add_keyword, get_keywords, count_keywords, delete_keyword, toggle_keyword,
     get_items, add_deal, get_deals, get_profit_summary,
     create_user, get_user_by_email, get_user_by_id, get_all_users, get_platform_stats,
     save_refresh_token, verify_refresh_token, revoke_refresh_token, DEFAULT_USER_ID,
     save_cs_message, get_cs_messages, clear_cs_messages,
+    create_order, mark_order_paid, get_order, get_user_orders,
+    activate_subscription, get_payment_stats,
 )
+from src.payment import payment_service, PLANS
 from src.models import KeywordCreate, MonitorKeyword, DealCreate, RegisterRequest, LoginRequest
 from src.auth import (
     hash_password, verify_password, create_access_token, create_refresh_token,
@@ -622,25 +625,133 @@ async def create_deal(deal: DealCreate, request: Request):
     return {"ok": True, "id": id_}
 
 
+# ==================== 支付 ====================
+
+@app.get("/api/payment/plans")
+async def get_plans():
+    """获取订阅方案"""
+    return [
+        {"id": k, "name": v["name"], "price": v["price"], "days": v["days"]}
+        for k, v in PLANS.items()
+    ]
+
+
+@app.post("/api/payment/create-order")
+async def create_payment_order(request: Request, plan: str = "pro_monthly"):
+    """创建支付订单"""
+    user_id = await _require_auth(request)
+    if plan not in PLANS:
+        raise HTTPException(400, "无效的订阅方案")
+    user = await get_user_by_id(user_id)
+    if user["tier"] == "pro":
+        raise HTTPException(400, "您已是 Pro 用户")
+
+    order = payment_service.create_order(user_id, plan)
+    if not order:
+        raise HTTPException(500, "创建订单失败")
+
+    # 持久化到 DB
+    await create_order(order.id, user_id, plan, order.amount, payment_service.mode)
+
+    return {
+        "order_id": order.id,
+        "amount": order.amount,
+        "plan": PLANS[plan]["name"],
+        "days": PLANS[plan]["days"],
+        "payment_url": payment_service.get_payment_url(order.id),
+    }
+
+
+@app.get("/api/payment/order/{order_id}")
+async def query_order(order_id: str):
+    """查询订单状态"""
+    order = await get_order(order_id)
+    if not order:
+        raise HTTPException(404, "订单不存在")
+    return order
+
+
+@app.get("/api/payment/my-orders")
+async def my_orders(request: Request):
+    """我的订单列表"""
+    user_id = await _require_auth(request)
+    return await get_user_orders(user_id)
+
+
+@app.post("/api/payment/pay/{order_id}/mock")
+async def mock_pay(order_id: str, request: Request):
+    """Mock 支付（开发/测试用）"""
+    user_id = await _require_auth(request)
+
+    order = payment_service.mock_pay(order_id)
+    if not order:
+        raise HTTPException(400, "支付失败：订单无效或已过期")
+
+    # 更新 DB
+    db_order = await mark_order_paid(order_id)
+    if not db_order:
+        raise HTTPException(400, "订单更新失败")
+
+    # 激活订阅
+    plan_info = PLANS.get(order.plan, {})
+    await activate_subscription(user_id, order.plan, plan_info.get("days", 30))
+
+    # 生成新的 access token（含新 tier）
+    user = await get_user_by_id(user_id)
+    access_token = create_access_token(user_id, user["email"], "pro")
+
+    return {
+        "ok": True,
+        "plan": plan_info.get("name", "Pro"),
+        "days": plan_info.get("days", 30),
+        "new_access_token": access_token,
+        "message": f"已升级为 {plan_info.get('name', 'Pro')}！",
+    }
+
+
 # ==================== 管理员 ====================
 
 @app.get("/api/admin/stats")
 async def admin_stats(request: Request):
     user_id = await _require_auth(request)
     user = await get_user_by_id(user_id)
-    # 简单管理：默认用户是 admin
-    if user_id != DEFAULT_USER_ID:
+    if user_id != DEFAULT_USER_ID and user.get("tier") != "admin":
         raise HTTPException(403, "无权限")
-    return await get_platform_stats()
+
+    platform = await get_platform_stats()
+    payment = await get_payment_stats()
+    return {**platform, **payment}
 
 
 @app.get("/api/admin/users")
 async def admin_users(request: Request):
     user_id = await _require_auth(request)
-    if user_id != DEFAULT_USER_ID:
+    user = await get_user_by_id(user_id)
+    if user_id != DEFAULT_USER_ID and user.get("tier") != "admin":
         raise HTTPException(403, "无权限")
-    users = await get_all_users()
-    return users
+    return await get_all_users()
+
+
+@app.put("/api/admin/users/{target_user_id}/tier")
+async def admin_set_tier(target_user_id: str, request: Request, tier: str = "pro",
+                          days: int = 30):
+    """管理员修改用户订阅"""
+    user_id = await _require_auth(request)
+    user = await get_user_by_id(user_id)
+    if user_id != DEFAULT_USER_ID and user.get("tier") != "admin":
+        raise HTTPException(403, "无权限")
+
+    from datetime import datetime, timedelta
+    expires = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    db = await get_db()
+    await db.execute(
+        "UPDATE users SET tier = ?, tier_expires_at = ? WHERE id = ?",
+        (tier, expires, target_user_id),
+    )
+    await db.commit()
+
+    logger.info(f"管理员 {user_id} 设置用户 {target_user_id} tier={tier} days={days}")
+    return {"ok": True, "user_id": target_user_id, "tier": tier, "expires_at": expires}
 
 
 # ==================== 静态文件 ====================

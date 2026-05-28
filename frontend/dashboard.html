@@ -65,6 +65,8 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
   <div class="tab" onclick="switchTab('chat')">💬 智能客服</div>
   <div class="tab" onclick="switchTab('profit')">💰 利润追踪</div>
   <div class="tab" onclick="switchTab('accounts')">👤 账号与运营</div>
+  <div class="tab" id="tabPro" onclick="switchTab('pro')">⭐ Pro 升级</div>
+  <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">🔧 管理</div>
 </div>
 
 <!-- ================== 监控 Tab ================== -->
@@ -254,6 +256,80 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
   </div>
 </div>
 
+<!-- ================== Pro 升级 Tab ================== -->
+<div id="pro" class="panel">
+  <div class="stats" id="proStats">
+    <div class="stat-card"><div class="value" id="proTier">免费版</div><div class="label">当前方案</div></div>
+    <div class="stat-card"><div class="value" id="proExpires">--</div><div class="label">到期时间</div></div>
+    <div class="stat-card"><div class="value" id="proKeywords">0/5</div><div class="label">关键词用量</div></div>
+  </div>
+
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+    <div class="card" style="flex:1;min-width:280px;border:2px solid #e5e5e5">
+      <h3>🆓 免费版</h3>
+      <div style="font-size:28px;font-weight:700;margin:8px 0">¥0<span style="font-size:14px;color:#999">/月</span></div>
+      <div style="font-size:13px;color:#666;line-height:1.8">
+        ✓ 最多 5 个关键词<br>✓ 商品监控<br>✓ 智能客服<br>✓ 基础统计
+      </div>
+      <div style="margin-top:12px;padding:8px;background:#f5f5f5;border-radius:4px;text-align:center;color:#999;font-size:13px">当前方案</div>
+    </div>
+
+    <div class="card" style="flex:1;min-width:280px;border:2px solid #ff5000">
+      <div style="float:right;background:#ff5000;color:#fff;padding:2px 10px;border-radius:0 6px 0 6px;font-size:11px">推荐</div>
+      <h3>⭐ Pro 月度</h3>
+      <div style="font-size:28px;font-weight:700;margin:8px 0">¥29<span style="font-size:14px;color:#999">/月</span></div>
+      <div style="font-size:13px;color:#666;line-height:1.8">
+        ✓ 无限关键词<br>✓ 商品监控<br>✓ 智能客服<br>✓ 利润追踪<br>✓ 订单通知<br>✓ 自动擦亮<br>✓ 数据导出
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="upgrade('pro_monthly')">立即升级 ¥29</button>
+    </div>
+
+    <div class="card" style="flex:1;min-width:280px;border:2px solid #e5e5e5">
+      <div style="float:right;background:#52c41a;color:#fff;padding:2px 10px;border-radius:0 6px 0 6px;font-size:11px">省 43%</div>
+      <h3>🚀 Pro 年度</h3>
+      <div style="font-size:28px;font-weight:700;margin:8px 0">¥199<span style="font-size:14px;color:#999">/年</span></div>
+      <div style="font-size:12px;color:#52c41a;margin-bottom:8px">≈ ¥16.6/月</div>
+      <div style="font-size:13px;color:#666;line-height:1.8">
+        ✓ Pro 月度全部功能<br>✓ 7×24 优先支持<br>✓ 新功能抢先体验
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:12px" onclick="upgrade('pro_yearly')">立即升级 ¥199</button>
+    </div>
+  </div>
+
+  <div id="upgradeResult" style="display:none" class="card">
+    <h3>✅ 升级成功</h3>
+    <div id="upgradeMsg"></div>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="location.reload()">刷新页面生效</button>
+  </div>
+
+  <div class="card">
+    <h3>📋 订单记录</h3>
+    <div id="orderList"><span style="color:#999">暂无订单</span></div>
+  </div>
+</div>
+
+<!-- ================== 管理后台 Tab ================== -->
+<div id="admin" class="panel">
+  <div class="stats">
+    <div class="stat-card"><div class="value" id="adminUsers">0</div><div class="label">总用户</div></div>
+    <div class="stat-card"><div class="value" id="adminPro">0</div><div class="label">Pro 用户</div></div>
+    <div class="stat-card"><div class="value" style="color:#52c41a" id="adminRevenue">¥0</div><div class="label">总收入</div></div>
+    <div class="stat-card"><div class="value" id="adminOrders">0</div><div class="label">总订单</div></div>
+    <div class="stat-card"><div class="value" id="adminKeywords">0</div><div class="label">总关键词</div></div>
+    <div class="stat-card"><div class="value" id="adminDeals">0</div><div class="label">总成交</div></div>
+  </div>
+
+  <div class="card">
+    <h3>👥 用户管理 <button class="btn btn-outline btn-sm" onclick="loadAdmin()" style="float:right">刷新</button></h3>
+    <div style="max-height:400px;overflow-y:auto">
+      <table id="adminUserTable">
+        <thead><tr><th>邮箱</th><th>Tier</th><th>到期</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody><tr><td colspan="5" style="text-align:center;color:#999">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = '/api';
 let currentTab = 'monitor';
@@ -318,13 +394,15 @@ async function loadUserInfo() {
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,profit:3,accounts:4}[name]})`).classList.add('active');
+  document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,profit:3,accounts:4,pro:5,admin:6}[name]})`).classList.add('active');
   document.getElementById(name).classList.add('active');
   currentTab = name;
   if (name === 'chat') { loadCSStatus(); startCSRefresh(); }
   else { if (csRefreshTimer) { clearInterval(csRefreshTimer); csRefreshTimer = null; } }
   if (name === 'profit') loadProfit();
   if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); }
+  if (name === 'pro') loadProTab();
+  if (name === 'admin') loadAdmin();
 }
 
 // === 监控 Tab ===
@@ -731,8 +809,107 @@ async function init() {
   }
   loadMonitor();
   loadProfit();
+  // 检查 admin 权限
+  checkAdminAccess();
 }
 init();
+
+// === Pro 升级 ===
+async function loadProTab() {
+  try {
+    const [me, plans, orders] = await Promise.all([
+      authFetch(API + '/auth/me').then(r => r.json()),
+      fetch(API + '/payment/plans').then(r => r.json()),
+      authFetch(API + '/payment/my-orders').then(r => r.json()),
+    ]);
+    document.getElementById('proTier').textContent = me.tier_name || '免费版';
+    document.getElementById('proExpires').textContent = me.tier_expires_at
+      ? new Date(me.tier_expires_at).toLocaleDateString() : '永久';
+    document.getElementById('proKeywords').textContent = '--/--';
+    // 如果已是 Pro，隐藏升级按钮
+    if (me.tier === 'pro') {
+      const cards = document.querySelectorAll('#pro .card');
+      cards.forEach(c => { if (c.querySelector('button')) c.style.opacity = '0.5'; });
+    }
+    // 订单列表
+    if (orders && orders.length > 0) {
+      document.getElementById('orderList').innerHTML = orders.map(o => {
+        const st = {pending:'🟡 待支付',paid:'🟢 已支付',expired:'🔴 已过期',cancelled:'⚫ 已取消'}[o.status] || o.status;
+        return `<div style="padding:6px 0;border-bottom:1px solid #f0f0f0;font-size:13px">
+          ${st} · ${o.plan} · ¥${o.amount} · ${new Date(o.created_at).toLocaleDateString()}
+        </div>`;
+      }).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function upgrade(plan) {
+  if (!confirm(`确认升级到 ${plan === 'pro_yearly' ? 'Pro 年度 ¥199' : 'Pro 月度 ¥29'}？`)) return;
+  try {
+    const r = await authFetch(API + '/payment/create-order?plan=' + plan, {method:'POST'});
+    if (!r.ok) { const e = await r.json(); alert(e.detail); return; }
+    const order = await r.json();
+    // Mock 支付
+    const payR = await authFetch(API + '/payment/pay/' + order.order_id + '/mock', {method:'POST'});
+    if (!payR.ok) { const e = await payR.json(); alert(e.detail); return; }
+    const result = await payR.json();
+    // 保存新 token
+    localStorage.setItem('access_token', result.new_access_token);
+    document.getElementById('upgradeResult').style.display = '';
+    document.getElementById('upgradeMsg').innerHTML = `<p style="font-size:16px;color:#52c41a;padding:16px 0">${result.message}</p>`;
+    loadProTab();
+  } catch(e) { alert('升级失败: ' + e); }
+}
+
+// === 管理后台 ===
+async function checkAdminAccess() {
+  try {
+    const me = await authFetch(API + '/auth/me').then(r => r.json());
+    if (me.tier === 'admin' || me.id === '00000000-0000-0000-0000-000000000000') {
+      document.getElementById('tabAdmin').style.display = '';
+    }
+  } catch(e) {}
+}
+
+async function loadAdmin() {
+  try {
+    const [stats, users] = await Promise.all([
+      authFetch(API + '/admin/stats').then(r => r.json()),
+      authFetch(API + '/admin/users').then(r => r.json()),
+    ]);
+    document.getElementById('adminUsers').textContent = stats.total_users || 0;
+    document.getElementById('adminPro').textContent = stats.active_pro_users || 0;
+    document.getElementById('adminRevenue').textContent = '¥' + (stats.total_revenue || 0).toFixed(0);
+    document.getElementById('adminOrders').textContent = stats.total_orders || 0;
+    document.getElementById('adminKeywords').textContent = stats.total_keywords || 0;
+    document.getElementById('adminDeals').textContent = stats.total_deals || 0;
+
+    if (!users || users.length === 0) {
+      document.querySelector('#adminUserTable tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">暂无用户</td></tr>';
+      return;
+    }
+    document.querySelector('#adminUserTable tbody').innerHTML = users.map(u => {
+      const exp = u.tier_expires_at ? new Date(u.tier_expires_at).toLocaleDateString() : '--';
+      const tierTag = u.tier === 'pro' ? '<span class="tag tag-green">Pro</span>' : '<span class="tag">免费</span>';
+      const actions = u.tier === 'pro'
+        ? `<button class="btn btn-outline btn-sm" onclick="setUserTier('${u.id}','free')">取消 Pro</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="setUserTier('${u.id}','pro')">升级 Pro</button>`;
+      return `<tr>
+        <td>${u.email}</td><td>${tierTag}</td><td>${exp}</td>
+        <td>${new Date(u.created_at).toLocaleDateString()}</td>
+        <td>${actions}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error('Admin load error:', e); }
+}
+
+async function setUserTier(userId, tier) {
+  if (!confirm(`确认将用户设为 ${tier}？`)) return;
+  try {
+    await authFetch(API + '/admin/users/' + userId + '/tier?tier=' + tier + '&days=30', {method:'PUT'});
+    loadAdmin();
+  } catch(e) { alert('操作失败: ' + e); }
+}
 setInterval(() => {
   if (currentTab === 'monitor') loadMonitor();
   if (currentTab === 'profit') loadProfit();
