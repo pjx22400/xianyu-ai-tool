@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; }
+body { width:1280px; height:640px; display:flex; align-items:center; justify-content:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+.card { width:1200px; height:560px; border-radius:24px; background:linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%); padding:60px 80px; display:flex; flex-direction:column; justify-content:space-between; box-shadow:0 20px 60px rgba(0,0,0,.5); border:1px solid #30363d; position:relative; overflow:hidden; }
+.card::before { content:''; position:absolute; top:-100px; right:-100px; width:400px; height:400px; background:radial-gradient(circle, rgba(255,80,0,.15) 0%, transparent 70%); }
+.emoji { font-size:72px; }
+.title { font-size:48px; font-weight:800; color:#fff; margin-top:16px; letter-spacing:2px; }
+.subtitle { font-size:24px; color:#8b949e; margin-top:12px; }
+.features { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-top:40px; }
+.feat { padding:16px 20px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid #21262d; }
+.feat .icon { font-size:22px; }
+.feat .name { font-size:15px; color:#c9d1d9; margin-top:6px; font-weight:600; }
+.feat .desc { font-size:11px; color:#6e7681; margin-top:4px; }
+.footer { display:flex; align-items:center; gap:16px; margin-top:8px; }
+.badge { padding:6px 16px; border-radius:20px; font-size:13px; font-weight:600; }
+.badge-py { background:rgba(48,105,208,.2); color:#58a6ff; }
+.badge-fa { background:rgba(0,150,136,.2); color:#3fb950; }
+.badge-ai { background:rgba(163,113,247,.2); color:#d2a8ff; }
+.badge-docker { background:rgba(36,150,237,.2); color:#79c0ff; }
+.github { color:#8b949e; font-size:14px; }
+.github strong { color:#c9d1d9; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div>
+    <div class="emoji">🐟</div>
+    <div class="title">Xianyu AI Tool</div>
+    <div class="subtitle">闲鱼卖家一站式 SaaS 平台 · 开源 MIT</div>
+  </div>
+  <div class="features">
+    <div class="feat"><div class="icon">📊</div><div class="name">商品监控</div><div class="desc">关键词扫描 + 降价检测</div></div>
+    <div class="feat"><div class="icon">💬</div><div class="name">AI 客服</div><div class="desc">DeepSeek 自动回复</div></div>
+    <div class="feat"><div class="icon">💰</div><div class="name">利润追踪</div><div class="desc">交易记录 + 数据分析</div></div>
+    <div class="feat"><div class="icon">💳</div><div class="name">支付系统</div><div class="desc">Mock + 预留真实支付</div></div>
+    <div class="feat"><div class="icon">📧</div><div class="name">邮件通知</div><div class="desc">QQ/163/Gmail 推送</div></div>
+    <div class="feat"><div class="icon">🚀</div><div class="name">Docker 部署</div><div class="desc">一键启动 59 测试全过</div></div>
+  </div>
+  <div class="footer">
+    <span class="badge badge-py">Python</span>
+    <span class="badge badge-fa">FastAPI</span>
+    <span class="badge badge-ai">DeepSeek</span>
+    <span class="badge badge-docker">Docker</span>
+    <span class="github">github.com/<strong>pjx22400/xianyu-ai-tool</strong></span>
+  </div>
+</div>
+</body>
+</html>
