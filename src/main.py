@@ -26,6 +26,7 @@ from src.database import (
     get_items, add_deal, get_deals, get_profit_summary,
     create_user, get_user_by_email, get_user_by_id, get_all_users, get_platform_stats,
     save_refresh_token, verify_refresh_token, revoke_refresh_token, DEFAULT_USER_ID,
+    save_cs_message, get_cs_messages, clear_cs_messages,
 )
 from src.models import KeywordCreate, MonitorKeyword, DealCreate, RegisterRequest, LoginRequest
 from src.auth import (
@@ -318,40 +319,54 @@ async def get_status(request: Request):
 
 # ==================== 智能客服 ====================
 
-cs_messages: list[dict] = []
+# 速率限制：每个 chat_id 最后回复时间
+_last_reply_time: dict[str, float] = {}
+_REPLY_COOLDOWN = 5  # 同一会话至少间隔 5 秒
 
 
 async def _on_buyer_message(info: dict):
-    cs_messages.append({
-        "chat_id": info["chat_id"],
-        "sender_name": info["sender_name"],
-        "content": info["content"],
-        "time": info["create_time"],
-        "direction": "in",
-    })
+    chat_id = info["chat_id"]
+    msg_time = info["create_time"]
+
+    # 持久化到 DB
+    await save_cs_message(
+        user_id=DEFAULT_USER_ID,
+        chat_id=chat_id,
+        sender_name=info["sender_name"],
+        content=info["content"],
+        direction="in",
+        msg_time=msg_time,
+    )
+
+    # 速率限制
+    now = asyncio.get_event_loop().time()
+    if chat_id in _last_reply_time and (now - _last_reply_time[chat_id]) < _REPLY_COOLDOWN:
+        logger.debug(f"⏳ [{chat_id}] 冷却中，跳过自动回复")
+        return
+
+    _last_reply_time[chat_id] = now
 
     item_desc = f"商品ID: {info.get('item_id', '未知')}"
     reply = await reply_agent.generate_reply(
         user_msg=info["content"],
         item_desc=item_desc,
-        chat_id=info["chat_id"],
+        chat_id=chat_id,
         sender_id=info["sender_id"],
     )
 
-    await ws_client.send_reply(info["chat_id"], info["sender_id"], reply)
+    await ws_client.send_reply(chat_id, info["sender_id"], reply)
 
-    cs_messages.append({
-        "chat_id": info["chat_id"],
-        "sender_name": "AI 助手",
-        "content": reply,
-        "time": int(asyncio.get_event_loop().time() * 1000),
-        "direction": "out",
-    })
+    # 持久化回复到 DB
+    await save_cs_message(
+        user_id=DEFAULT_USER_ID,
+        chat_id=chat_id,
+        sender_name="AI 助手",
+        content=reply,
+        direction="out",
+        msg_time=int(now * 1000),
+    )
 
-    while len(cs_messages) > 200:
-        cs_messages.pop(0)
-
-    logger.info(f"💬 回复 [{info['chat_id']}]: {reply[:50]}")
+    logger.info(f"💬 回复 [{chat_id}]: {reply[:50]}")
 
 
 async def _on_order_event(order_info: dict):
@@ -363,17 +378,14 @@ async def _on_order_event(order_info: dict):
     msg = f"📦 订单更新: {status} — {item_title} (订单号: {order_id})"
     logger.info(msg)
 
-    cs_messages.append({
-        "chat_id": order_id,
-        "sender_name": "系统",
-        "content": msg,
-        "time": order_info.get("create_time", int(asyncio.get_event_loop().time() * 1000)),
-        "direction": "system",
-        "order_status": status,
-        "order_id": order_id,
-        "item_title": item_title,
-        "buyer": buyer,
-    })
+    await save_cs_message(
+        user_id=DEFAULT_USER_ID,
+        chat_id=order_id,
+        sender_name="系统",
+        content=msg,
+        direction="system",
+        msg_time=order_info.get("create_time", int(asyncio.get_event_loop().time() * 1000)),
+    )
 
     if "WAIT_SELLER_SEND_GOODS" in str(status) or "等待卖家发货" in str(status):
         reminder = (
@@ -381,17 +393,14 @@ async def _on_order_event(order_info: dict):
             f"商品: {item_title}\n订单号: {order_id}\n"
             f"请尽快发货～"
         )
-        cs_messages.append({
-            "chat_id": order_id,
-            "sender_name": "系统",
-            "content": reminder,
-            "time": int(asyncio.get_event_loop().time() * 1000),
-            "direction": "system",
-            "auto_action": "发货提醒",
-        })
-
-    while len(cs_messages) > 200:
-        cs_messages.pop(0)
+        await save_cs_message(
+            user_id=DEFAULT_USER_ID,
+            chat_id=order_id,
+            sender_name="系统",
+            content=reminder,
+            direction="system",
+            msg_time=int(asyncio.get_event_loop().time() * 1000),
+        )
 
 
 async def _try_start_cs():
@@ -444,17 +453,51 @@ async def stop_cs():
 
 
 @app.get("/api/cs/messages")
-async def get_cs_messages(limit: int = 50):
-    return cs_messages[-limit:]
+async def get_cs_messages_endpoint(request: Request, limit: int = 100):
+    user_id = await _get_user_id(request)
+    msgs = await get_cs_messages(user_id, limit=limit)
+    return msgs
 
 
 @app.get("/api/cs/status")
 async def cs_status():
     return {
         "running": cs_running,
-        "message_count": len(cs_messages),
         "my_id": ws_client.my_id if ws_client else "",
     }
+
+
+@app.post("/api/cs/reply")
+async def manual_reply(body: dict, request: Request):
+    """手动发送回复（覆盖 AI 自动回复）"""
+    if not ws_client or not cs_running:
+        raise HTTPException(400, "客服未启动")
+    chat_id = body.get("chat_id", "")
+    text = body.get("text", "")
+    if not chat_id or not text:
+        raise HTTPException(400, "缺少 chat_id 或 text")
+
+    # 拼发送方 ID（从 chat_id 提取）
+    to_id = chat_id  # 闲鱼 chat_id 即对方 ID
+
+    try:
+        await ws_client.send_reply(chat_id, to_id, text)
+    except Exception as e:
+        logger.error(f"手动回复失败: {e}")
+        raise HTTPException(500, f"发送失败: {str(e)[:80]}")
+
+    user_id = await _get_user_id(request)
+    await save_cs_message(
+        user_id=user_id,
+        chat_id=chat_id,
+        sender_name="手动回复",
+        content=text,
+        direction="out",
+        msg_time=int(asyncio.get_event_loop().time() * 1000),
+    )
+
+    logger.info(f"✋ 手动回复 [{chat_id}]: {text[:50]}")
+    return {"ok": True}
 
 
 @app.get("/api/cs/stats")

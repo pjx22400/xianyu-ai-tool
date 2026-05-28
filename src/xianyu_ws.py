@@ -436,13 +436,38 @@ class XianyuWebSocket:
 
     # --- 生命周期 ---
 
-    async def start(self):
+    async def start(self, auto_reconnect: bool = True):
+        """启动 WebSocket 连接，可选自动重连"""
         self._running = True
-        await self.connect()
-        asyncio.create_task(self._listen_loop())
+        if auto_reconnect:
+            asyncio.create_task(self._reconnect_loop())
+        else:
+            await self.connect()
+            asyncio.create_task(self._listen_loop())
+
+    async def _reconnect_loop(self):
+        """自动重连循环 — 断线后指数退避重试"""
+        backoff = 1  # 初始 1 秒
+        max_backoff = 60  # 最大 60 秒
+        while self._running:
+            try:
+                await self.connect()
+                logger.info("✅ WebSocket 已连接")
+                backoff = 1  # 连接成功，重置退避
+                await self._listen_loop()
+            except Exception as e:
+                if not self._running:
+                    break
+                logger.warning(f"⚠️ WebSocket 断开: {e}，{backoff}s 后重连...")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
     async def stop(self):
         self._running = False
         if self._ws:
-            await self._ws.close()
+            try:
+                await self._ws.close()
+            except Exception:
+                pass
+        self._ws = None
         await self._http.aclose()

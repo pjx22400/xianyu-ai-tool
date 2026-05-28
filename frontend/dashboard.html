@@ -106,6 +106,7 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
       <div>
         <button class="btn btn-primary" id="csStartBtn" onclick="startCS()">启动客服</button>
         <button class="btn btn-danger" id="csStopBtn" onclick="stopCS()">停止</button>
+        <label style="font-size:12px;margin-left:8px"><input type="checkbox" id="csAutoRefresh" checked onchange="toggleCSRefresh()"> 自动刷新</label>
       </div>
     </div>
     <div id="csStatsRow" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #f0f0f0">
@@ -122,9 +123,23 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
   </div>
 
   <div class="card">
-    <h3>📨 实时消息（最近50条）</h3>
+    <div class="flex" style="justify-content:space-between;margin-bottom:12px">
+      <h3>📨 实时消息</h3>
+      <button class="btn btn-outline btn-sm" onclick="refreshMessages()">🔄 刷新</button>
+    </div>
     <div class="msg-list" id="msgList">暂无消息</div>
-    <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="refreshMessages()">刷新</button>
+  </div>
+
+  <div class="card" id="manualReplyCard" style="display:none">
+    <h3>✋ 手动回复</h3>
+    <div class="flex" style="margin-bottom:8px">
+      <input id="manualChatId" placeholder="聊天 ID（从消息复制）" style="flex:1">
+      <button class="btn btn-outline btn-sm" onclick="fillChatFromSelection()" title="从选中消息填充 ID">填充</button>
+    </div>
+    <div class="flex">
+      <textarea id="manualText" placeholder="输入回复内容..." style="flex:1;min-height:50px"></textarea>
+      <button class="btn btn-primary" onclick="sendManualReply()">发送</button>
+    </div>
   </div>
 </div>
 
@@ -306,7 +321,8 @@ function switchTab(name) {
   document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,profit:3,accounts:4}[name]})`).classList.add('active');
   document.getElementById(name).classList.add('active');
   currentTab = name;
-  if (name === 'chat') loadCSStatus();
+  if (name === 'chat') { loadCSStatus(); startCSRefresh(); }
+  else { if (csRefreshTimer) { clearInterval(csRefreshTimer); csRefreshTimer = null; } }
   if (name === 'profit') loadProfit();
   if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); }
 }
@@ -379,18 +395,37 @@ async function scanNow() {
 }
 
 // === 客服 Tab ===
+let csRefreshTimer = null;
+let selectedChatId = '';
+
+function toggleCSRefresh() {
+  if (document.getElementById('csAutoRefresh').checked) {
+    startCSRefresh();
+  } else {
+    if (csRefreshTimer) { clearInterval(csRefreshTimer); csRefreshTimer = null; }
+  }
+}
+
+function startCSRefresh() {
+  if (csRefreshTimer) clearInterval(csRefreshTimer);
+  csRefreshTimer = setInterval(() => {
+    if (currentTab === 'chat') loadCSStatus();
+  }, 5000);
+}
+
 async function loadCSStatus() {
   try {
     const [status, msgs] = await Promise.all([
       fetch(API + '/cs/status').then(r => r.json()),
-      fetch(API + '/cs/messages').then(r => r.json()),
+      fetch(API + '/cs/messages?limit=100').then(r => r.json()),
     ]);
     const running = status.running;
     document.getElementById('csInfo').innerHTML = running
-      ? `已连接 · ID: ${status.my_id} · 消息: ${status.message_count}条`
+      ? `已连接 · ID: ${status.my_id}`
       : '未启动';
     document.getElementById('csStartBtn').style.display = running ? 'none' : '';
     document.getElementById('csStopBtn').style.display = running ? '' : 'none';
+    document.getElementById('manualReplyCard').style.display = running ? '' : 'none';
 
     // 客服统计
     if (running) {
@@ -416,28 +451,51 @@ async function loadCSStatus() {
         let cls = 'msg-system';
         if (m.direction === 'in') cls = 'msg-in';
         else if (m.direction === 'out') cls = 'msg-out';
-        let extra = '';
-        if (m.order_status) extra = `<span class="tag tag-orange">${m.order_status}</span> `;
-        if (m.auto_action) extra = `<span class="tag tag-blue">${m.auto_action}</span> `;
-        return `<div class="msg-item ${cls}">
-          <strong>${m.sender_name}</strong> <span style="color:#999;font-size:11px">${new Date(m.time).toLocaleTimeString()}</span>
-          ${extra}<br>${m.content}
+        const t = m.msg_time ? new Date(m.msg_time).toLocaleTimeString() : '';
+        return `<div class="msg-item ${cls}" onclick="onMsgClick('${m.chat_id}')" style="cursor:pointer" title="点击填充聊天ID">
+          <strong>${m.sender_name}</strong>
+          <span style="color:#999;font-size:11px">${t}</span>
+          <span style="color:#999;font-size:10px;float:right">${m.chat_id}</span>
+          <br>${m.content}
         </div>`;
       }).join('');
     }
   } catch(e) { console.error(e); }
 }
 
+function onMsgClick(chatId) {
+  selectedChatId = chatId;
+  document.getElementById('manualChatId').value = chatId;
+}
+
+async function sendManualReply() {
+  const chatId = document.getElementById('manualChatId').value.trim();
+  const text = document.getElementById('manualText').value.trim();
+  if (!chatId || !text) return alert('请填写聊天 ID 和回复内容');
+  try {
+    const r = await fetch(API + '/cs/reply', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({chat_id: chatId, text: text}),
+    });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail || '发送失败'); }
+    document.getElementById('manualText').value = '';
+    loadCSStatus();
+  } catch(e) { alert('发送失败: ' + e.message); }
+}
+
 async function startCS() {
   try {
     await fetch(API + '/cs/start', {method:'POST'});
     loadCSStatus();
+    startCSRefresh();
   } catch(e) { alert('启动失败'); }
 }
 
 async function stopCS() {
   try {
     await fetch(API + '/cs/stop', {method:'POST'});
+    if (csRefreshTimer) { clearInterval(csRefreshTimer); csRefreshTimer = null; }
     loadCSStatus();
   } catch(e) { alert('停止失败'); }
 }
@@ -677,7 +735,6 @@ async function init() {
 init();
 setInterval(() => {
   if (currentTab === 'monitor') loadMonitor();
-  if (currentTab === 'chat') loadCSStatus();
   if (currentTab === 'profit') loadProfit();
 }, 30000);
 </script>

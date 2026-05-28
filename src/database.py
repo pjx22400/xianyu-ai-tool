@@ -121,6 +121,21 @@ async def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (account_id, user_id)
         );
+
+        CREATE TABLE IF NOT EXISTS cs_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT '""" + DEFAULT_USER_ID + """',
+            chat_id TEXT NOT NULL,
+            sender_name TEXT DEFAULT '',
+            content TEXT NOT NULL,
+            direction TEXT DEFAULT 'in',
+            msg_time INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cs_chat ON cs_messages(chat_id);
+        CREATE INDEX IF NOT EXISTS idx_cs_time ON cs_messages(msg_time);
+        CREATE INDEX IF NOT EXISTS idx_cs_user ON cs_messages(user_id);
     """)
     await db.commit()
 
@@ -360,3 +375,43 @@ async def get_platform_stats() -> dict:
         "total_deals": deals[0]["c"] if deals else 0,
         "total_keywords": keywords[0]["c"] if keywords else 0,
     }
+
+
+# ==================== 客服消息 CRUD ====================
+
+async def save_cs_message(user_id: str, chat_id: str, sender_name: str,
+                          content: str, direction: str, msg_time: int) -> int:
+    """保存客服消息，返回行 ID"""
+    db = await get_db()
+    cursor = await db.execute(
+        "INSERT INTO cs_messages (user_id, chat_id, sender_name, content, direction, msg_time) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, chat_id, sender_name, content, direction, msg_time),
+    )
+    await db.commit()
+    return cursor.lastrowid
+
+
+async def get_cs_messages(user_id: str, limit: int = 100, chat_id: str = "") -> list[dict]:
+    """获取最近客服消息，可按 chat_id 过滤"""
+    db = await get_db()
+    if chat_id:
+        rows = await db.execute_fetchall(
+            "SELECT * FROM cs_messages WHERE user_id = ? AND chat_id = ? "
+            "ORDER BY msg_time DESC LIMIT ?",
+            (user_id, chat_id, limit),
+        )
+    else:
+        rows = await db.execute_fetchall(
+            "SELECT * FROM cs_messages WHERE user_id = ? "
+            "ORDER BY msg_time DESC LIMIT ?",
+            (user_id, limit),
+        )
+    return [dict(r) for r in rows]
+
+
+async def clear_cs_messages(user_id: str):
+    """清除所有客服消息"""
+    db = await get_db()
+    await db.execute("DELETE FROM cs_messages WHERE user_id = ?", (user_id,))
+    await db.commit()
