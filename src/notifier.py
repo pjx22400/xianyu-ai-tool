@@ -7,7 +7,14 @@ from datetime import datetime
 logger = logging.getLogger("notifier")
 
 NOTIFY_DIR = Path("/app/notifications")
-NOTIFY_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    NOTIFY_DIR.mkdir(parents=True, exist_ok=True)
+except PermissionError:
+    # 本地开发/测试环境无 /app 目录权限，回退到临时目录
+    import tempfile
+    NOTIFY_DIR = Path(tempfile.gettempdir()) / "xianyu_notifications"
+    NOTIFY_DIR.mkdir(parents=True, exist_ok=True)
+    logger.warning(f"通知目录回退: {NOTIFY_DIR}")
 
 
 def _push(notification_type: str, payload: dict):

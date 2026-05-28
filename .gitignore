@@ -31,3 +31,4 @@ Thumbs.db
 
 # 闲鱼 Cookie（敏感信息）
 # .env 已忽略，不要提交任何含 Cookie 的文件
+.coverage

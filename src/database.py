@@ -127,13 +127,13 @@ async def init_db():
 
 # ==================== 用户 CRUD ====================
 
-async def create_user(email: str, password_hash: str) -> str:
+async def create_user(email: str, password_hash: str, tier: str = "free") -> str:
     """创建用户，返回 user_id"""
     db = await get_db()
     uid = str(uuid.uuid4())
     await db.execute(
-        "INSERT INTO users (id, email, password_hash, tier) VALUES (?, ?, ?, 'free')",
-        (uid, email, password_hash),
+        "INSERT INTO users (id, email, password_hash, tier) VALUES (?, ?, ?, ?)",
+        (uid, email, password_hash, tier),
     )
     await db.commit()
     return uid
