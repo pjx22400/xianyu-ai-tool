@@ -1,0 +1,14 @@
+# Docker build ignore
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+data/
+logs/
+.git/
+.gitignore
+*.md
+.vscode/
+*.swp
+test_*.py
+/tmp/

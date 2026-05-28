@@ -1,0 +1,24 @@
+# 闲鱼 AI 助手 — Docker Compose 编排
+version: "3.8"
+
+services:
+  xianyu-ai:
+    build: .
+    container_name: xianyu-ai-tool
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # 持久化：数据库 + 日志 + 配置
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

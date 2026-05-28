@@ -1,10 +1,8 @@
-# 核心依赖
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-httpx>=0.27.0
-pydantic>=2.0
-python-dotenv>=1.0
-aiosqlite>=0.20.0
-
-# 可选: 浏览器登录助手
-# playwright>=1.48.0
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29,<1.0
+httpx>=0.27,<1.0
+aiosqlite>=0.20,<1.0
+websockets>=14.0,<16.0
+python-dotenv>=1.0,<2.0
+pydantic>=2.0,<3.0
+aiofiles>=24.0,<25.0
