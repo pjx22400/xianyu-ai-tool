@@ -66,6 +66,7 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
   <div class="tab" onclick="switchTab('profit')">💰 利润追踪</div>
   <div class="tab" onclick="switchTab('accounts')">👤 账号与运营</div>
   <div class="tab" id="tabPro" onclick="switchTab('pro')">⭐ Pro 升级</div>
+  <div class="tab" onclick="switchTab('export')">📦 数据导出</div>
   <div class="tab" id="tabAdmin" onclick="switchTab('admin')" style="display:none">🔧 管理</div>
 </div>
 
@@ -305,6 +306,30 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
   <div class="card">
     <h3>📋 订单记录</h3>
     <div id="orderList"><span style="color:#999">暂无订单</span></div>
+  </div>
+</div>
+
+<!-- ================== 数据导出 Tab ================== -->
+<div id="export" class="panel">
+  <div class="card">
+    <h3>📦 数据导出</h3>
+    <p style="color:#999;font-size:13px;margin-bottom:16px">导出 CSV 格式数据，可用 Excel / WPS / Google Sheets 打开分析</p>
+    <div class="flex">
+      <button class="btn btn-primary" onclick="downloadCSV('keywords')">📝 导出关键词</button>
+      <button class="btn btn-primary" onclick="downloadCSV('items')">🛍️ 导出商品</button>
+      <button class="btn btn-primary" onclick="downloadCSV('deals')">💰 导出利润交易</button>
+      <button class="btn btn-primary" onclick="downloadCSV('orders')">🧾 导出订单（Pro）</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🔍 商品价格走势</h3>
+    <p style="color:#999;font-size:13px;margin-bottom:12px">输入商品 ID 查看历史价格变化</p>
+    <div class="flex" style="margin-bottom:12px">
+      <input id="priceHistItemId" placeholder="商品 ID" style="flex:1">
+      <button class="btn btn-primary" onclick="loadPriceHistory()">查看</button>
+    </div>
+    <div id="priceHistChart" style="color:#999;font-size:12px">输入商品 ID 查看价格走势</div>
   </div>
 </div>
 
@@ -910,6 +935,71 @@ async function setUserTier(userId, tier) {
     loadAdmin();
   } catch(e) { alert('操作失败: ' + e); }
 }
+
+// === 数据导出 ===
+function downloadCSV(type) {
+  const url = API + '/export/' + type + '?t=' + Date.now();
+  const a = document.createElement('a');
+  a.href = url;
+  // authFetch 拿不到 raw CSV body，直接用 fetch + token 参数绕
+  const token = getToken();
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(r => r.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob);
+      a.href = blobUrl;
+      a.download = type + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+      alert('✅ ' + type + '.csv 下载中...');
+    })
+    .catch(e => alert('导出失败: ' + e));
+}
+
+// === 价格历史 ===
+async function loadPriceHistory() {
+  const itemId = document.getElementById('priceHistItemId').value.trim();
+  const chartDiv = document.getElementById('priceHistChart');
+  if (!itemId) { chartDiv.innerHTML = '<span style="color:#999">请输入商品 ID</span>'; return; }
+
+  try {
+    const r = await authFetch(API + '/items/' + itemId + '/price-history');
+    const data = await r.json();
+    if (!data.history || data.history.length === 0) {
+      chartDiv.innerHTML = '<span style="color:#999">暂无价格历史数据</span>';
+      return;
+    }
+
+    const points = data.history.reverse();
+    const prices = points.map(p => p.price);
+    const maxP = Math.max(...prices);
+    const minP = Math.min(...prices);
+    const range = maxP - minP || 1;
+    const barHeight = 200;
+    const barWidth = Math.max(12, (800 / points.length));
+    const labels = points.map((p, i) => {
+      const h = barHeight * (p.price - minP) / range + 10;
+      const date = p.recorded_at ? p.recorded_at.slice(0,10) : '';
+      return `<div title="¥${p.price} (${date})" style="display:inline-block;width:${barWidth}px;background:linear-gradient(#ff5000,#ff7a45);height:${h}px;vertical-align:bottom;margin-right:2px;border-radius:3px 3px 0 0;cursor:pointer"></div>`;
+    });
+
+    chartDiv.innerHTML = `
+      <div style="border-bottom:1px solid #e5e5e5;padding-bottom:4px;margin-bottom:4px">
+        当前 ¥${points[points.length-1].price} &nbsp; 最低 ¥${minP} &nbsp; 最高 ¥${maxP}
+      </div>
+      <div style="display:flex;align-items:flex-end;height:220px;overflow-x:auto">${labels.join('')}</div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:#999;margin-top:4px">
+        <span>${points[0]?.recorded_at?.slice(0,10) || ''}</span>
+        <span>${points[points.length-1]?.recorded_at?.slice(0,10) || ''}</span>
+      </div>
+    `;
+  } catch(e) {
+    chartDiv.innerHTML = '<span style="color:#ff4d4f">查询失败: ' + e.message + '</span>';
+  }
+}
+
 setInterval(() => {
   if (currentTab === 'monitor') loadMonitor();
   if (currentTab === 'profit') loadProfit();

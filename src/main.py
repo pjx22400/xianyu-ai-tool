@@ -754,6 +754,58 @@ async def admin_set_tier(target_user_id: str, request: Request, tier: str = "pro
     return {"ok": True, "user_id": target_user_id, "tier": tier, "expires_at": expires}
 
 
+# ==================== 数据导出 ====================
+
+from src.export import (
+    export_keywords_csv, export_items_csv, export_deals_csv, export_orders_csv,
+)
+from fastapi.responses import PlainTextResponse
+
+
+@app.get("/api/export/keywords")
+async def export_keywords(request: Request):
+    user_id = await _require_auth(request)
+    csv_data = await export_keywords_csv(user_id)
+    return PlainTextResponse(csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=keywords.csv"})
+
+
+@app.get("/api/export/items")
+async def export_items(request: Request, keyword: str = ""):
+    user_id = await _require_auth(request)
+    csv_data = await export_items_csv(user_id, keyword)
+    return PlainTextResponse(csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=items.csv"})
+
+
+@app.get("/api/export/deals")
+async def export_deals(request: Request):
+    user_id = await _require_auth(request)
+    csv_data = await export_deals_csv(user_id)
+    return PlainTextResponse(csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=deals.csv"})
+
+
+@app.get("/api/export/orders")
+async def export_orders(request: Request):
+    user_id = await _require_auth(request)
+    csv_data = await export_orders_csv(user_id)
+    return PlainTextResponse(csv_data, media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=orders.csv"})
+
+
+# ==================== 价格历史 ====================
+
+from src.database import get_price_history as db_get_price_history
+
+
+@app.get("/api/items/{item_id}/price-history")
+async def item_price_history(item_id: str, request: Request):
+    user_id = await _require_auth(request)
+    history = await db_get_price_history(item_id, user_id)
+    return {"item_id": item_id, "history": history}
+
+
 # ==================== 静态文件 ====================
 
 @app.get("/dashboard")

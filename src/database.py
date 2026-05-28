@@ -150,6 +150,17 @@ async def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
         CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+
+        CREATE TABLE IF NOT EXISTS price_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL DEFAULT '""" + DEFAULT_USER_ID + """',
+            item_id TEXT NOT NULL,
+            price REAL NOT NULL,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_ph_item ON price_history(item_id);
+        CREATE INDEX IF NOT EXISTS idx_ph_user ON price_history(user_id);
     """)
     await db.commit()
 
@@ -316,6 +327,14 @@ async def upsert_items(keyword: str, items: list[XianyuItem], user_id: str):
                 item.price_drop_amount,
             ),
         )
+
+        # 记录价格变化（已有商品且价格不同时）
+        if not item.is_new and row and item.price != row[0]["price"]:
+            await db.execute(
+                "INSERT INTO price_history (user_id, item_id, price) VALUES (?, ?, ?)",
+                (user_id, item.item_id, item.price),
+            )
+
     await db.commit()
 
 
@@ -527,3 +546,44 @@ async def get_payment_stats() -> dict:
     )
     d["active_pro_users"] = pro_users[0]["c"] if pro_users else 0
     return d
+
+
+# ── 价格历史 ──
+
+async def record_price_history(user_id: str, item_id: str, price: float) -> int:
+    """记录商品价格变化。返回插入行 ID。"""
+    db = await get_db()
+    cursor = await db.execute(
+        "INSERT INTO price_history (user_id, item_id, price) VALUES (?, ?, ?)",
+        (user_id, item_id, price),
+    )
+    await db.commit()
+    return cursor.lastrowid
+
+
+async def get_price_history(item_id: str, user_id: str, limit: int = 100) -> list[dict]:
+    """获取商品价格历史"""
+    db = await get_db()
+    rows = await db.execute_fetchall(
+        "SELECT price, recorded_at FROM price_history "
+        "WHERE item_id = ? AND user_id = ? "
+        "ORDER BY recorded_at DESC LIMIT ?",
+        (item_id, user_id, limit),
+    )
+    return [dict(r) for r in rows]
+
+
+async def cleanup_price_history(user_id: str, max_per_item: int = 30):
+    """每个 item 只保留最近 N 条记录"""
+    db = await get_db()
+    await db.execute("""
+        DELETE FROM price_history WHERE rowid IN (
+            SELECT rowid FROM (
+                SELECT rowid,
+                       ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY recorded_at DESC) AS rn
+                FROM price_history
+                WHERE user_id = ?
+            ) WHERE rn > ?
+        )
+    """, (user_id, max_per_item))
+    await db.commit()
