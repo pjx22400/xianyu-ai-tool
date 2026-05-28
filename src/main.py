@@ -9,6 +9,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,16 @@ from src.auto_refresh import AutoRefresher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("main")
+
+# 文件日志（按 10MB 轮转，保留 5 个备份）
+_log_dir = config.BASE_DIR / "logs"
+_log_dir.mkdir(exist_ok=True)
+_file_handler = RotatingFileHandler(
+    _log_dir / "xianyu.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
+)
+_file_handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s"))
+logging.getLogger().addHandler(_file_handler)
+logging.getLogger("uvicorn.access").addHandler(_file_handler)
 
 # 全局服务
 monitor: Monitor | None = None
