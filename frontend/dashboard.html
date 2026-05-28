@@ -117,13 +117,56 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
 
 <!-- ================== 账号与运营 Tab ================== -->
 <div id="accounts" class="panel">
+  <!-- 登录向导卡片 -->
+  <div class="card" style="border-left: 4px solid #ff5000" id="loginWizard">
+    <h3>🔑 添加闲鱼账号</h3>
+    <p style="color:#666;font-size:13px;margin-bottom:16px">填完信息点按钮，按提示操作即可 — 全程在浏览器完成</p>
+    
+    <div class="flex" style="margin-bottom:12px">
+      <input id="accId" placeholder="账号 ID（如 main, 小号1）" style="width:180px">
+      <input id="accName" placeholder="备注名（可选）" style="width:160px">
+      <button class="btn btn-primary" id="startLoginBtn" onclick="startLogin()">🔐 获取 Cookie</button>
+    </div>
+
+    <!-- 登录引导面板（初始隐藏） -->
+    <div id="loginGuide" style="display:none">
+      <div style="background:#fff7e6;border:1px solid #ffd591;border-radius:6px;padding:12px 16px;margin-bottom:16px">
+        <strong>📌 操作步骤：</strong>
+        <ol style="margin:8px 0 0 18px;font-size:13px;line-height:2">
+          <li id="step1">闲鱼登录页已在新窗口打开 → <strong>扫码或输密码登录</strong></li>
+          <li id="step2">登录成功后，在闲鱼页面按 <kbd style="background:#eee;padding:1px 6px;border-radius:3px">F12</kbd></li>
+          <li id="step3">点击 <strong>Console</strong>（控制台）标签</li>
+          <li id="step4"><button class="btn btn-primary btn-sm" onclick="copySnippet()">📋 复制代码</button> 粘贴到控制台，按 <kbd style="background:#eee;padding:1px 6px;border-radius:3px">Enter</kbd></li>
+        </ol>
+      </div>
+      
+      <div style="position:relative">
+        <pre id="jsSnippet" style="background:#1e1e1e;color:#d4d4d4;padding:14px 16px;border-radius:6px;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;line-height:1.6"></pre>
+      </div>
+      
+      <div id="loginStatus" style="margin-top:12px;font-size:13px;color:#999">
+        <span id="statusDot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#faad14;margin-right:6px;animation:pulse 1.2s infinite"></span>
+        <span id="statusText">等待 Cookie 回传...</span>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    #jsSnippet::selection { background:#264f78; }
+    .kbd { background:#eee;padding:1px 6px;border-radius:3px;border:1px solid #ccc;font-size:12px; }
+    .toast { position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:999;animation:fadeIn .3s; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  </style>
+
+  <!-- 手动粘贴（备用） -->
   <div class="card">
-    <h3>➕ 添加账号</h3>
+    <h3>📋 手动粘贴 Cookie（备用）</h3>
     <div class="flex">
-      <input id="accId" placeholder="账号 ID" style="width:140px">
-      <input id="accName" placeholder="备注名" style="width:140px">
-      <textarea id="accCookies" placeholder="Cookie 字符串（从 login.py 获取）" style="flex:1"></textarea>
-      <button class="btn btn-primary" onclick="addAccount()">添加</button>
+      <input id="accIdManual" placeholder="账号 ID" style="width:160px">
+      <input id="accNameManual" placeholder="备注名" style="width:140px">
+      <textarea id="accCookiesManual" placeholder="Cookie: key=value; ..." style="flex:1;min-height:60px"></textarea>
+      <button class="btn btn-outline" onclick="addAccountManual()">添加</button>
     </div>
   </div>
 
@@ -281,11 +324,84 @@ async function stopCS() {
 async function refreshMessages() { loadCSStatus(); }
 
 // === 账号 Tab ===
+let loginPollTimer = null;
+let loginAccountId = null;
+
+function startLogin() {
+  const id = document.getElementById('accId').value.trim();
+  const name = document.getElementById('accName').value.trim();
+  if (!id) return alert('请先填写账号 ID');
+
+  loginAccountId = id;
+  
+  // 生成 JS 代码 — 在闲鱼控制台运行后会 POST cookie 到 API
+  const apiUrl = window.location.origin;
+  const jsCode = `(async()=>{let r=await fetch('${apiUrl}/api/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:'${id}',name:'${name||id}',cookies:document.cookie,enabled:true,is_default:false})});if(!r.ok){r=await fetch('${apiUrl}/api/accounts/${id}',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({cookies:document.cookie,name:'${name||id}'})})};let d=await r.json();console.log(d.ok?'OK':'FAIL',d);document.body.innerHTML='<div style=\"text-align:center;padding:100px;font-size:24px;color:#ff5000\">Cookie saved!</div>'})()`;
+
+  document.getElementById('jsSnippet').textContent = jsCode;
+  document.getElementById('loginGuide').style.display = 'block';
+  document.getElementById('startLoginBtn').disabled = true;
+  document.getElementById('startLoginBtn').textContent = '⏳ 等待登录...';
+  
+  // 打开闲鱼
+  window.open('https://www.goofish.com/', '_blank');
+  
+  // 开始轮询
+  if (loginPollTimer) clearInterval(loginPollTimer);
+  loginPollTimer = setInterval(checkNewAccount, 2000);
+}
+
+function copySnippet() {
+  const code = document.getElementById('jsSnippet').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    showToast('已复制！切换到闲鱼页面 → F12 → Console → 粘贴 → Enter');
+  }).catch(() => {
+    // fallback: 选中文本
+    const range = document.createRange();
+    range.selectNode(document.getElementById('jsSnippet'));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    showToast('已选中代码，Ctrl+C 复制 → 到闲鱼控制台粘贴');
+  });
+}
+
+async function checkNewAccount() {
+  try {
+    const accounts = await fetch(API + '/accounts').then(r => r.json());
+    const found = accounts.find(a => a.id === loginAccountId);
+    if (found && found.cookies) {
+      // 成功！
+      clearInterval(loginPollTimer);
+      loginPollTimer = null;
+      
+      document.getElementById('statusDot').style.background = '#52c41a';
+      document.getElementById('statusDot').style.animation = 'none';
+      document.getElementById('statusText').textContent = '✅ Cookie 已获取！账号已保存';
+      document.getElementById('startLoginBtn').disabled = false;
+      document.getElementById('startLoginBtn').textContent = '🔐 获取 Cookie';
+      document.getElementById('accId').value = '';
+      document.getElementById('accName').value = '';
+      
+      showToast('🎉 账号 ' + loginAccountId + ' 添加成功！');
+      loadAccounts();
+    }
+  } catch(e) {}
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.background = '#52c41a';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
 async function loadAccounts() {
   try {
     const accounts = await fetch(API + '/accounts').then(r => r.json());
     if (accounts.length === 0) {
-      document.getElementById('accTable').innerHTML = '<tr><td colspan="5" style="color:#999">暂无账号，请通过 login.py 登录获取 Cookie 后添加</td></tr>';
+      document.getElementById('accTable').innerHTML = '<tr><td colspan="5" style="color:#999">暂无账号，在上面输入 ID 后点击"获取 Cookie"</td></tr>';
     } else {
       document.getElementById('accTable').innerHTML = accounts.map(a => `<tr>
         <td>${a.id}</td>
@@ -301,19 +417,19 @@ async function loadAccounts() {
   } catch(e) { console.error(e); }
 }
 
-async function addAccount() {
-  const id = document.getElementById('accId').value.trim();
-  const name = document.getElementById('accName').value.trim();
-  const cookies = document.getElementById('accCookies').value.trim();
+async function addAccountManual() {
+  const id = document.getElementById('accIdManual').value.trim();
+  const name = document.getElementById('accNameManual').value.trim();
+  const cookies = document.getElementById('accCookiesManual').value.trim();
   if (!id || !cookies) return alert('请填写账号ID和Cookie');
   const r = await fetch(API + '/accounts', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({id, name, cookies, enabled:true, is_default:false}),
   });
   if (r.ok) {
-    document.getElementById('accId').value = '';
-    document.getElementById('accName').value = '';
-    document.getElementById('accCookies').value = '';
+    document.getElementById('accIdManual').value = '';
+    document.getElementById('accNameManual').value = '';
+    document.getElementById('accCookiesManual').value = '';
     loadAccounts();
   } else {
     const err = await r.json();

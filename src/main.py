@@ -338,11 +338,37 @@ async def list_accounts():
     return [a.model_dump() for a in account_manager.list()]
 
 
+@app.post("/api/login/callback")
+async def login_callback(body: dict):
+    """从浏览器控制台回传 Cookie（自动新增或更新）"""
+    acc_id = body.get("id", "")
+    name = body.get("name", "")
+    cookies = body.get("cookies", "")
+    if not acc_id or not cookies:
+        raise HTTPException(400, "缺少 id 或 cookies")
+
+    existing = account_manager.get(acc_id)
+    if existing:
+        account_manager.update(acc_id, cookies=cookies, name=name or existing.name)
+        logger.info(f"更新账号 Cookie: {acc_id}")
+        return {"ok": True, "id": acc_id, "action": "updated"}
+    else:
+        account = Account(id=acc_id, name=name or acc_id, cookies=cookies, enabled=True, is_default=len(account_manager.list()) == 0)
+        account_manager.add(account)
+        logger.info(f"新增账号: {acc_id}")
+        return {"ok": True, "id": acc_id, "action": "created"}
+
+
 @app.post("/api/accounts")
 async def add_account(body: Account):
+    """添加账号（如果已存在则更新 Cookie）"""
+    existing = account_manager.get(body.id)
+    if existing:
+        account_manager.update(body.id, cookies=body.cookies, name=body.name or existing.name)
+        return {"ok": True, "id": body.id, "action": "updated"}
     if account_manager.add(body):
-        return {"ok": True, "id": body.id}
-    raise HTTPException(400, f"账号 {body.id} 已存在")
+        return {"ok": True, "id": body.id, "action": "created"}
+    raise HTTPException(400, f"添加账号失败")
 
 
 @app.put("/api/accounts/{account_id}")

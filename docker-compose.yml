@@ -13,6 +13,10 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
       - ./.env:/app/.env:ro
+      # 通知队列：notifier 写入文件 → 宿主机 cron 轮询推送飞书
+      - ./notifications:/app/notifications
+      # 开发模式：前端挂载热更新
+      - ./frontend:/app/frontend:ro
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1

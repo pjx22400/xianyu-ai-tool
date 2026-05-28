@@ -1,60 +1,37 @@
-"""飞书通知模块 — 走 Bot API 直接推送给用户"""
+"""飞书通知模块 — 写入通知文件，由 Hermes cron job 轮询推送"""
+import json
 import logging
-import httpx
-from src.config import config
+from pathlib import Path
+from datetime import datetime
 
 logger = logging.getLogger("notifier")
 
-_token_cache: dict = {"token": "", "expires": 0}
+NOTIFY_DIR = Path("/app/notifications")
+NOTIFY_DIR.mkdir(parents=True, exist_ok=True)
 
 
-async def _get_access_token() -> str:
-    """获取 tenant_access_token（缓存）"""
-    import time
-    now = time.time()
-    if _token_cache["token"] and _token_cache["expires"] > now + 60:
-        return _token_cache["token"]
-
-    resp = httpx.post(
-        "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
-        json={"app_id": config.FEISHU_APP_ID, "app_secret": config.FEISHU_APP_SECRET},
-        timeout=10,
-    )
-    data = resp.json()
-    _token_cache["token"] = data["tenant_access_token"]
-    _token_cache["expires"] = now + data.get("expire", 7200)
-    return _token_cache["token"]
+def _push(notification_type: str, payload: dict):
+    """写入通知到 JSON 文件"""
+    entry = {
+        "type": notification_type,
+        "payload": payload,
+        "ts": datetime.now().isoformat(),
+    }
+    # 用时间戳+随机后缀避免文件名冲突
+    fname = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{notification_type}.json"
+    fpath = NOTIFY_DIR / fname
+    with open(fpath, "w") as f:
+        json.dump(entry, f, ensure_ascii=False)
 
 
 async def send_feishu(content: str) -> bool:
-    """发送飞书消息给用户"""
-    user_id = config.FEISHU_USER_OPEN_ID
-    if not user_id:
-        logger.info(f"📢 [通知日志] {content[:200]}")
-        return False
-
+    """写入文本通知"""
     try:
-        token = await _get_access_token()
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.post(
-                "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id",
-                headers={"Authorization": f"Bearer {token}"},
-                json={
-                    "receive_id": user_id,
-                    "msg_type": "text",
-                    "content": json.dumps({"text": content}),
-                },
-            )
-            ok = resp.status_code == 200
-            if not ok:
-                logger.error(f"飞书推送失败 [{resp.status_code}]: {resp.text[:200]}")
-            return ok
+        _push("text", {"content": content})
+        return True
     except Exception as e:
-        logger.error(f"飞书推送异常: {e}")
+        logger.error(f"通知写入失败: {e}")
         return False
-
-
-import json
 
 
 async def notify_new_items(items: list[dict]):

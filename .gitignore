@@ -1,10 +1,33 @@
-__pycache__/
-*.pyc
+# 环境变量
 .env
+
+# 数据 / 日志 / 通知
 data/
+logs/
+notifications/
 *.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml
+
+# OS
 .DS_Store
-logs/
-data/
+Thumbs.db
+
+# 闲鱼 Cookie（敏感信息）
+# .env 已忽略，不要提交任何含 Cookie 的文件
