@@ -754,6 +754,45 @@ async def admin_set_tier(target_user_id: str, request: Request, tier: str = "pro
     return {"ok": True, "user_id": target_user_id, "tier": tier, "expires_at": expires}
 
 
+# ==================== 邮件配置（Pro） ====================
+
+from src.database import save_email_config as db_save_email_config
+from src.database import get_email_config as db_get_email_config
+
+
+@app.post("/api/email/config")
+async def email_save_config(request: Request):
+    user_id = await _require_auth(request)
+    body = await request.json()
+    await db_save_email_config(user_id, body)
+    return {"ok": True}
+
+
+@app.get("/api/email/config")
+async def email_get_config(request: Request):
+    user_id = await _require_auth(request)
+    config = await db_get_email_config(user_id)
+    return {"ok": True, "config": config}
+
+
+@app.post("/api/email/test")
+async def email_test(request: Request):
+    """发送测试邮件"""
+    user_id = await _require_auth(request)
+    body = await request.json()
+
+    from src.emailer import EmailConfig, send_email
+    ecfg = EmailConfig(
+        smtp_host=body["smtp_host"], smtp_port=body["smtp_port"],
+        sender_email=body["sender_email"], sender_password=body["sender_password"],
+        use_tls=body.get("use_tls", True), use_ssl=body.get("use_ssl", False),
+    )
+    ok = await send_email(ecfg, body["sender_email"],
+                          "🐟 闲鱼 AI 测试邮件",
+                          "<h2>✅ 邮件配置成功！</h2><p>您的邮件通知已就绪。</p>")
+    return {"ok": ok, "message": "发送成功" if ok else "发送失败，请检查 SMTP 配置和授权码"}
+
+
 # ==================== 数据导出 ====================
 
 from src.export import (

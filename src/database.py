@@ -161,6 +161,20 @@ async def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_ph_item ON price_history(item_id);
         CREATE INDEX IF NOT EXISTS idx_ph_user ON price_history(user_id);
+
+        CREATE TABLE IF NOT EXISTS email_configs (
+            user_id TEXT PRIMARY KEY,
+            smtp_host TEXT NOT NULL DEFAULT 'smtp.qq.com',
+            smtp_port INTEGER NOT NULL DEFAULT 587,
+            sender_email TEXT NOT NULL DEFAULT '',
+            sender_password TEXT NOT NULL DEFAULT '',
+            use_tls INTEGER NOT NULL DEFAULT 1,
+            use_ssl INTEGER NOT NULL DEFAULT 0,
+            notify_new_items INTEGER NOT NULL DEFAULT 1,
+            notify_price_drops INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     await db.commit()
 
@@ -587,3 +601,54 @@ async def cleanup_price_history(user_id: str, max_per_item: int = 30):
         )
     """, (user_id, max_per_item))
     await db.commit()
+
+
+# ── 邮件配置 ──
+
+async def save_email_config(user_id: str, config: dict) -> bool:
+    db = await get_db()
+    await db.execute("""
+        INSERT INTO email_configs (user_id, smtp_host, smtp_port, sender_email, sender_password,
+                                   use_tls, use_ssl, notify_new_items, notify_price_drops, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(user_id) DO UPDATE SET
+            smtp_host=excluded.smtp_host, smtp_port=excluded.smtp_port,
+            sender_email=excluded.sender_email, sender_password=excluded.sender_password,
+            use_tls=excluded.use_tls, use_ssl=excluded.use_ssl,
+            notify_new_items=excluded.notify_new_items,
+            notify_price_drops=excluded.notify_price_drops,
+            updated_at=CURRENT_TIMESTAMP
+    """, (
+        user_id, config["smtp_host"], config["smtp_port"],
+        config["sender_email"], config["sender_password"],
+        int(config.get("use_tls", True)), int(config.get("use_ssl", False)),
+        int(config.get("notify_new_items", True)),
+        int(config.get("notify_price_drops", True)),
+    ))
+    await db.commit()
+    return True
+
+
+async def get_email_config(user_id: str) -> dict | None:
+    db = await get_db()
+    rows = await db.execute_fetchall(
+        "SELECT * FROM email_configs WHERE user_id = ?", (user_id,),
+    )
+    if not rows:
+        return None
+    r = dict(rows[0])
+    r["use_tls"] = bool(r["use_tls"])
+    r["use_ssl"] = bool(r["use_ssl"])
+    r["notify_new_items"] = bool(r["notify_new_items"])
+    r["notify_price_drops"] = bool(r["notify_price_drops"])
+    return r
+
+
+async def get_all_email_configs() -> list[dict]:
+    db = await get_db()
+    rows = await db.execute_fetchall(
+        "SELECT user_id, smtp_host, smtp_port, sender_email, sender_password, "
+        "use_tls, use_ssl, notify_new_items, notify_price_drops "
+        "FROM email_configs WHERE sender_email != '' AND sender_password != ''"
+    )
+    return [dict(r) for r in rows]

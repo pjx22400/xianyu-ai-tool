@@ -255,6 +255,37 @@ textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #
     </div>
     <div style="font-size:12px;color:#999;margin-top:8px">默认每 6 小时自动刷新所有商品，保持曝光排名</div>
   </div>
+
+  <div class="card">
+    <h3>📧 邮件通知 <span class="tag tag-orange" style="font-size:10px">Pro</span></h3>
+    <p style="font-size:12px;color:#999;margin-bottom:12px">配置后，新商品和降价提醒将自动发送到您的邮箱。支持 QQ / 163 / 126 / Gmail</p>
+    <div id="emailStatus" style="font-size:12px;margin-bottom:12px;color:#999">加载配置中...</div>
+    <div class="flex" style="flex-direction:column;gap:8px">
+      <div class="flex">
+        <select id="emailPreset" onchange="applyEmailPreset()" style="width:140px">
+          <option value="">自定义 SMTP</option>
+          <option value="qq">QQ 邮箱</option>
+          <option value="163">163 邮箱</option>
+          <option value="126">126 邮箱</option>
+          <option value="gmail">Gmail</option>
+        </select>
+        <input id="emailSMTP" placeholder="SMTP 服务器" style="flex:1" value="smtp.qq.com">
+        <input id="emailPort" type="number" placeholder="端口" style="width:80px" value="587">
+      </div>
+      <div class="flex">
+        <input id="emailAddr" placeholder="发件邮箱地址" style="flex:1">
+        <input id="emailPass" type="password" placeholder="授权码（非邮箱密码）" style="flex:1">
+      </div>
+      <div class="flex" style="justify-content:space-between">
+        <label style="font-size:13px"><input type="checkbox" id="emailNewItems" checked> 新商品通知</label>
+        <label style="font-size:13px"><input type="checkbox" id="emailDrops" checked> 降价通知</label>
+        <div>
+          <button class="btn btn-outline btn-sm" onclick="testEmail()">📨 发送测试</button>
+          <button class="btn btn-primary btn-sm" onclick="saveEmail()">💾 保存配置</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ================== Pro 升级 Tab ================== -->
@@ -425,7 +456,7 @@ function switchTab(name) {
   if (name === 'chat') { loadCSStatus(); startCSRefresh(); }
   else { if (csRefreshTimer) { clearInterval(csRefreshTimer); csRefreshTimer = null; } }
   if (name === 'profit') loadProfit();
-  if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); }
+  if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); loadEmailConfig(); }
   if (name === 'pro') loadProTab();
   if (name === 'admin') loadAdmin();
 }
@@ -756,6 +787,83 @@ async function triggerRefresh() {
   } catch(e) { alert('擦亮失败: ' + e); }
   btn.textContent = '立即擦亮';
   btn.disabled = false;
+}
+
+// === 邮件通知 ===
+
+const EMAIL_PRESETS = {
+  qq: { host: 'smtp.qq.com', port: 587 },
+  '163': { host: 'smtp.163.com', port: 465 },
+  '126': { host: 'smtp.126.com', port: 465 },
+  gmail: { host: 'smtp.gmail.com', port: 587 },
+};
+
+function applyEmailPreset() {
+  const preset = document.getElementById('emailPreset').value;
+  if (!preset || !EMAIL_PRESETS[preset]) return;
+  document.getElementById('emailSMTP').value = EMAIL_PRESETS[preset].host;
+  document.getElementById('emailPort').value = EMAIL_PRESETS[preset].port;
+}
+
+async function loadEmailConfig() {
+  try {
+    const r = await authFetch(API + '/email/config');
+    const data = await r.json();
+    if (data.config) {
+      const c = data.config;
+      document.getElementById('emailSMTP').value = c.smtp_host || 'smtp.qq.com';
+      document.getElementById('emailPort').value = c.smtp_port || 587;
+      document.getElementById('emailAddr').value = c.sender_email || '';
+      document.getElementById('emailPass').value = '';
+      document.getElementById('emailNewItems').checked = c.notify_new_items !== false;
+      document.getElementById('emailDrops').checked = c.notify_price_drops !== false;
+      document.getElementById('emailStatus').innerHTML = c.sender_email
+        ? '<span style="color:#52c41a">✅ 已配置: ' + c.sender_email + '</span>'
+        : '<span style="color:#999">未配置</span>';
+    } else {
+      document.getElementById('emailStatus').innerHTML = '<span style="color:#999">未配置</span>';
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function saveEmail() {
+  const cfg = {
+    smtp_host: document.getElementById('emailSMTP').value.trim(),
+    smtp_port: parseInt(document.getElementById('emailPort').value) || 587,
+    sender_email: document.getElementById('emailAddr').value.trim(),
+    sender_password: document.getElementById('emailPass').value,
+    use_tls: true,
+    use_ssl: parseInt(document.getElementById('emailPort').value) === 465,
+    notify_new_items: document.getElementById('emailNewItems').checked,
+    notify_price_drops: document.getElementById('emailDrops').checked,
+  };
+  if (!cfg.sender_email || !cfg.sender_password) {
+    alert('请填写邮箱地址和授权码'); return;
+  }
+  try {
+    await authFetch(API + '/email/config', { method: 'POST', body: JSON.stringify(cfg) });
+    document.getElementById('emailStatus').innerHTML = '<span style="color:#52c41a">✅ 已保存: ' + cfg.sender_email + '</span>';
+    showToast('✅ 邮件配置已保存');
+  } catch(e) { alert('保存失败: ' + e); }
+}
+
+async function testEmail() {
+  const cfg = {
+    smtp_host: document.getElementById('emailSMTP').value.trim(),
+    smtp_port: parseInt(document.getElementById('emailPort').value) || 587,
+    sender_email: document.getElementById('emailAddr').value.trim(),
+    sender_password: document.getElementById('emailPass').value,
+    use_tls: true,
+    use_ssl: parseInt(document.getElementById('emailPort').value) === 465,
+  };
+  if (!cfg.sender_email || !cfg.sender_password) {
+    alert('请先填写邮箱地址和授权码'); return;
+  }
+  try {
+    const r = await authFetch(API + '/email/test', { method: 'POST', body: JSON.stringify(cfg) });
+    const data = await r.json();
+    alert(data.ok ? '✅ 测试邮件已发送，请检查收件箱' : '❌ ' + data.message);
+  } catch(e) { alert('测试失败: ' + e); }
 }
 
 // === 利润追踪 ===

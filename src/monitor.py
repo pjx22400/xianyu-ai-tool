@@ -8,6 +8,8 @@ from src.config import config
 from src.database import get_keywords, upsert_items, get_items
 from src.xianyu_api import XianyuAPI
 from src.notifier import notify_new_items, notify_price_drops
+from src.database import get_keywords as db_get_keywords, get_all_email_configs
+from src.emailer import EmailConfig, notify_new_items_email, notify_price_drops_email
 
 logger = logging.getLogger("monitor")
 
@@ -81,6 +83,35 @@ class Monitor:
             await notify_new_items(all_new)
         if all_drops:
             await notify_price_drops(all_drops)
+
+        # 邮件通知（Pro 用户）
+        try:
+            email_configs = await get_all_email_configs()
+            if email_configs:
+                # 按关键词分组后发送
+                for r in results:
+                    kw = r.get("keyword", "")
+                    kw_new = r.get("new_items", [])
+                    kw_drops = r.get("dropped_items", [])
+                    if not kw_new and not kw_drops:
+                        continue
+
+                    for ecfg in email_configs:
+                        econf = EmailConfig(
+                            smtp_host=ecfg["smtp_host"], smtp_port=ecfg["smtp_port"],
+                            sender_email=ecfg["sender_email"],
+                            sender_password=ecfg["sender_password"],
+                            use_tls=bool(ecfg["use_tls"]), use_ssl=bool(ecfg["use_ssl"]),
+                            notify_new_items=bool(ecfg["notify_new_items"]),
+                            notify_price_drops=bool(ecfg["notify_price_drops"]),
+                        )
+                        to_email = ecfg["sender_email"]
+                        if kw_new:
+                            await notify_new_items_email(econf, to_email, kw, kw_new)
+                        if kw_drops:
+                            await notify_price_drops_email(econf, to_email, kw, kw_drops)
+        except Exception as e:
+            logger.error(f"邮件通知失败: {e}")
 
         logger.info(
             f"扫描完成: {len(keywords)} 个关键词, "
