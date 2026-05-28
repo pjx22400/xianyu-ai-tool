@@ -1,7 +1,9 @@
 """监控核心 — 定时扫描 + 变化检测 + 通知"""
 import asyncio
 import logging
+import random
 from datetime import datetime
+from typing import Optional
 from src.config import config
 from src.database import get_keywords, upsert_items, get_items
 from src.xianyu_api import XianyuAPI
@@ -95,7 +97,7 @@ class Monitor:
                 await self.scan_all()
             except Exception as e:
                 logger.error(f"监控循环出错: {e}")
-            await asyncio.sleep(config.MONITOR_INTERVAL)
+            await asyncio.sleep(config.MONITOR_INTERVAL + random.randint(-30, 30))
 
     def start(self):
         """启动监控（后台任务）"""

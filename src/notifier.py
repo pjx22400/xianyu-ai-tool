@@ -10,10 +10,10 @@ CARD_TEMPLATE = """{{"msg_type":"interactive","card":{{"header":{{"title":{{"tag
 
 
 async def _send_feishu(content: str) -> bool:
-    """通过 webhook 发送飞书消息"""
+    """通过 webhook 发送飞书消息，无 webhook 则仅日志"""
     webhook = config.FEISHU_WEBHOOK
     if not webhook:
-        logger.warning("未配置 FEISHU_WEBHOOK，跳过通知")
+        logger.info(f"📢 [通知日志] {content[:200]}")
         return False
 
     try:

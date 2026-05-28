@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.config import config
-from src.database import init_db, add_keyword, get_keywords, delete_keyword, toggle_keyword, get_items
+from src.database import init_db, add_keyword, get_keywords, delete_keyword, toggle_keyword, get_items, close_db
 from src.models import KeywordCreate, MonitorKeyword
 from src.monitor import Monitor
 from src.xianyu_ws import XianyuWebSocket
@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
         model=config.DEEPSEEK_MODEL,
     )
 
-    # 启动商品监控
+    # 启动商品监控 + 客服
     if _has_cookies():
         monitor = Monitor()
         monitor.start()
@@ -66,8 +66,11 @@ async def lifespan(app: FastAPI):
         auto_refresher.start()
         refresh_running = True
         logger.info("自动擦亮已启动，间隔 360 分钟")
+
+        # 客服 WebSocket（后台尝试启动，失败不阻塞服务）
+        asyncio.create_task(_try_start_cs())
     else:
-        logger.warning("未配置账号，监控和擦亮未启动")
+        logger.warning("未配置账号，监控、擦亮和客服未启动")
 
     yield
 
@@ -79,6 +82,7 @@ async def lifespan(app: FastAPI):
     await _stop_cs()
     if reply_agent:
         await reply_agent.close()
+    await close_db()
     logger.info("服务已停止")
 
 
@@ -250,6 +254,14 @@ async def _on_order_event(order_info: dict):
 
     while len(cs_messages) > 200:
         cs_messages.pop(0)
+
+
+async def _try_start_cs():
+    """后台尝试启动客服，失败不阻塞服务"""
+    try:
+        await _start_cs()
+    except Exception as e:
+        logger.warning(f"客服启动失败（可稍后手动启动）: {e}")
 
 
 async def _start_cs():

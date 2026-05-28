@@ -56,6 +56,15 @@ DEFAULT_PROMPT = """你是闲鱼卖家。请友好简洁回复买家，不超过
 买家: {user_msg}
 回复:"""
 
+
+def _safe_format(template: str, **kwargs) -> str:
+    """安全模板替换 — 用 str.replace 代替 .format()，防止用户输入含 {} 炸异常"""
+    result = template
+    for key, value in kwargs.items():
+        result = result.replace("{" + key + "}", str(value))
+    return result
+
+
 # ==================== Agent ====================
 
 @dataclass
@@ -79,7 +88,6 @@ class ReplyAgent:
         self.model = model
         self._conversations: dict[str, Conversation] = {}
         self._http = httpx.AsyncClient(
-            base_url=self.base_url,
             headers={"Authorization": f"Bearer {self.api_key}"},
             timeout=30,
         )
@@ -90,13 +98,9 @@ class ReplyAgent:
         return self._conversations[chat_id]
 
     async def _call_llm(self, prompt: str, max_tokens: int = 150) -> str:
-        """调用 DeepSeek API"""
-        if not self.api_key:
-            return "（未配置 API Key，使用默认回复）你好，商品还在，有什么想问的？"
-
         try:
             resp = await self._http.post(
-                "/v1/chat/completions",
+                f"{self.base_url}/chat/completions",
                 json={
                     "model": self.model,
                     "messages": [{"role": "user", "content": prompt}],
@@ -112,7 +116,7 @@ class ReplyAgent:
 
     async def classify_intent(self, user_msg: str, item_desc: str) -> str:
         """识别买家意图"""
-        prompt = CLASSIFY_PROMPT.format(user_msg=user_msg, item_desc=item_desc)
+        prompt = _safe_format(CLASSIFY_PROMPT, user_msg=user_msg, item_desc=item_desc)
         result = await self._call_llm(prompt, max_tokens=20)
         return result.strip().lower()
 
@@ -134,33 +138,38 @@ class ReplyAgent:
         price_kw = ["便宜", "价", "砍价", "少点", "最低", "优惠", "贵", "降"]
         if any(kw in text_clean for kw in price_kw):
             conv.bargain_count += 1
-            prompt = PRICE_PROMPT.format(
-                user_msg=user_msg, item_desc=item_desc, bargain_count=conv.bargain_count
+            prompt = _safe_format(
+                PRICE_PROMPT,
+                user_msg=user_msg, item_desc=item_desc, bargain_count=conv.bargain_count,
             )
             reply = await self._call_llm(prompt)
             conv.messages.append({"role": "assistant", "content": reply})
             return reply
 
-        # 2. 技术类关键词
+        # 2. 技术类关键词快捷匹配
         tech_kw = ["参数", "规格", "型号", "配置", "兼容", "支持", "版本", "尺寸"]
         if any(kw in text_clean for kw in tech_kw):
-            prompt = TECH_PROMPT.format(user_msg=user_msg, item_desc=item_desc)
+            prompt = _safe_format(TECH_PROMPT, user_msg=user_msg, item_desc=item_desc)
             reply = await self._call_llm(prompt)
             conv.messages.append({"role": "assistant", "content": reply})
             return reply
 
         # 3. 大模型兜底分类
-        intent = await self.classify_intent(user_msg, item_desc)
+        try:
+            intent = await self.classify_intent(user_msg, item_desc)
+        except Exception:
+            intent = "other"
 
         if "price" in intent:
             conv.bargain_count += 1
-            prompt = PRICE_PROMPT.format(
-                user_msg=user_msg, item_desc=item_desc, bargain_count=conv.bargain_count
+            prompt = _safe_format(
+                PRICE_PROMPT,
+                user_msg=user_msg, item_desc=item_desc, bargain_count=conv.bargain_count,
             )
         elif "tech" in intent:
-            prompt = TECH_PROMPT.format(user_msg=user_msg, item_desc=item_desc)
+            prompt = _safe_format(TECH_PROMPT, user_msg=user_msg, item_desc=item_desc)
         else:
-            prompt = DEFAULT_PROMPT.format(user_msg=user_msg, item_desc=item_desc)
+            prompt = _safe_format(DEFAULT_PROMPT, user_msg=user_msg, item_desc=item_desc)
 
         reply = await self._call_llm(prompt)
         conv.messages.append({"role": "assistant", "content": reply})
