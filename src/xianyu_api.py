@@ -1,7 +1,7 @@
 """闲鱼 API 封装 — 基于 REST API + Cookie 认证"""
 import hashlib
 import time
-import re
+import json
 from typing import Optional
 from urllib.parse import urlencode
 import httpx
@@ -32,17 +32,18 @@ class XianyuAPI:
         self._parse_cookies()
 
     def _parse_cookies(self):
-        """解析 cookie 字符串到 session"""
+        """解析 cookie 字符串到 session（保持 URL 编码避免 httpx ASCII 错误）"""
         for part in self.cookies_str.split("; "):
             if "=" in part:
                 key, val = part.split("=", 1)
                 self.session.cookies.set(key, val, domain=".goofish.com")
 
     def _get_token(self) -> str:
-        """从 cookie 中提取 _m_h5_tk"""
-        for cookie in self.session.cookies.jar:
-            if cookie.name == "_m_h5_tk":
-                return cookie.value.split("_")[0]
+        """从 cookie 中提取 _m_h5_tk 的 token 部分"""
+        for part in self.cookies_str.split("; "):
+            if part.startswith("_m_h5_tk="):
+                val = part.split("=", 1)[1]
+                return val.split("_")[0]
         return ""
 
     def _sign(self, t: str, data: str) -> str:
@@ -61,13 +62,18 @@ class XianyuAPI:
     ) -> dict:
         """搜索闲鱼商品
 
-        API: mtop.taobao.idle.search.search
+        API: mtop.taobao.idlemtopsearch.pc.search (2026年最新 PC 端)
         """
         t = str(int(time.time() * 1000))
-        data_val = (
-            f'{{"keyword":"{keyword}","page":{page},"pageSize":{page_size},'
-            f'"searchType":"standard","spm":"a21ybx.search.searchResult.1"}}'
-        )
+        data_obj = {
+            "pageNumber": page,
+            "keyword": keyword,
+            "fromFilter": False,
+            "rowsPerPage": page_size,
+            "sortValue": "",
+            "sortField": "",
+        }
+        data_val = json.dumps(data_obj, ensure_ascii=False)
 
         params = {
             "jsv": "2.7.2",
@@ -79,17 +85,23 @@ class XianyuAPI:
             "accountSite": "xianyu",
             "dataType": "json",
             "timeout": "20000",
-            "api": "mtop.taobao.idle.search.search",
+            "api": "mtop.taobao.idlemtopsearch.pc.search",
             "sessionOption": "AutoLoginOnly",
         }
 
         try:
             resp = await self.session.post(
-                f"{self.BASE}/mtop.taobao.idle.search.search/1.0/",
+                f"{self.BASE}/mtop.taobao.idlemtopsearch.pc.search/1.0/",
                 params=params,
                 data={"data": data_val},
             )
-            return resp.json()
+            text = resp.text
+            if "FAIL_SYS" in text:
+                return {"error": f"API不存在: {text[:200]}"}
+            # httpx 可能返回 bytes，确保正确解码
+            if isinstance(text, bytes):
+                text = text.decode("utf-8")
+            return json.loads(text)
         except Exception as e:
             return {"error": str(e)}
 
@@ -99,7 +111,7 @@ class XianyuAPI:
         API: mtop.taobao.idle.pc.detail
         """
         t = str(int(time.time() * 1000))
-        data_val = f'{{"itemId":"{item_id}"}}'
+        data_val = json.dumps({"itemId": item_id})
 
         params = {
             "jsv": "2.7.2",
@@ -125,38 +137,63 @@ class XianyuAPI:
         except Exception as e:
             return {"error": str(e)}
 
-    def parse_search_results(self, data: dict, keyword: str) -> list:
-        """解析搜索结果，提取商品列表"""
+    @staticmethod
+    def parse_search_results(data: dict, keyword: str) -> list:
+        """解析搜索结果，提取商品列表（适配 2026 年闲鱼 API 响应结构）"""
         from src.models import XianyuItem
 
         items = []
         try:
-            # 闲鱼搜索 API 嵌套结构
             result = data.get("data", {})
             if isinstance(result, str):
-                import json
                 result = json.loads(result)
 
-            item_list = result.get("itemList") or result.get("items") or []
+            # 新版 API: resultList 结构
+            result_list = result.get("resultList", [])
 
-            for raw in item_list:
-                item_id = str(raw.get("itemId", ""))
+            for raw in result_list:
+                # 深嵌套提取
+                item_data = raw.get("data", {})
+                item_main = item_data.get("item", {}).get("main", {})
+                args = item_main.get("clickParam", {}).get("args", {})
+                ex_content = item_main.get("exContent", {})
+                detail_params = ex_content.get("detailParams", {})
+
+                item_id = str(args.get("id") or detail_params.get("itemId", ""))
                 if not item_id:
                     continue
 
-                price_str = str(raw.get("price", "0"))
+                # 价格
+                price_str = str(args.get("price") or detail_params.get("soldPrice", "0"))
                 try:
                     price = float(price_str)
                 except ValueError:
                     price = 0.0
 
+                # 标题（在 exContent 深层或 args.tag）
+                title = str(detail_params.get("title") or args.get("tag", ""))
+                # 清理换行
+                title = title.replace("\\n", " ").replace("\n", " ").strip()
+
+                # 卖家
+                seller = str(detail_params.get("userNick") or args.get("seller_id", ""))
+                if seller and len(seller) > 40:
+                    # 可能是 base64，用 sellerId 的简写
+                    seller = seller[:20] + "..."
+
+                # 位置
+                location = str(ex_content.get("area") or args.get("p_city", ""))
+
+                # 图片（新版可能不在 args 里，暂用空）
+                image_url = str(args.get("picUrl", ""))
+
                 items.append(XianyuItem(
                     item_id=item_id,
-                    title=str(raw.get("title", "")),
+                    title=title,
                     price=price,
-                    seller=str(raw.get("sellerNick", raw.get("nick", ""))),
-                    location=str(raw.get("ipLocation", raw.get("location", ""))),
-                    image_url=str(raw.get("mainPic", raw.get("picUrl", ""))),
+                    seller=seller,
+                    location=location,
+                    image_url=image_url,
                     item_url=f"https://www.goofish.com/item?id={item_id}",
                     keyword=keyword,
                 ))
