@@ -3,213 +3,380 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>闲鱼 AI 助手</title>
+<title>闲鱼 AI 智能助手</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
-  .header{background:#1e293b;border-bottom:1px solid #334155;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
-  .header h1{font-size:18px;color:#38bdf8}
-  .status-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
-  .status-dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e}
-  .status-dot.off{background:#ef4444}
-  .tabs{display:flex;gap:0;background:#1e293b;border-bottom:1px solid #334155;padding:0 24px}
-  .tab{padding:12px 20px;cursor:pointer;color:#64748b;font-size:14px;font-weight:600;border-bottom:2px solid transparent;transition:.2s}
-  .tab:hover{color:#94a3b8}
-  .tab.active{color:#38bdf8;border-bottom-color:#38bdf8}
-  .container{max-width:1200px;margin:0 auto;padding:24px}
-  .card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px}
-  .card h2{font-size:16px;margin-bottom:16px;color:#94a3b8}
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:24px}
-  .stat-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;text-align:center}
-  .stat-card .value{font-size:28px;font-weight:700}
-  .stat-card .label{font-size:12px;color:#64748b;margin-top:4px}
-  .green{color:#22c55e}.blue{color:#38bdf8}.yellow{color:#f59e0b}
-  input,button{border-radius:8px;border:1px solid #334155;background:#0f172a;color:#e2e8f0;padding:10px 14px;font-size:14px}
-  input:focus{outline:none;border-color:#38bdf8}
-  button{background:#1d4ed8;border:none;cursor:pointer;font-weight:600}
-  button:hover{background:#2563eb}
-  button.red{background:#991b1b}button.red:hover{background:#b91c1c}
-  button.gray{background:#334155}button.gray:hover{background:#475569}
-  button.green{background:#15803d}button.green:hover{background:#16a34a}
-  .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .input-group{display:flex;gap:8px}
-  .input-group input{flex:1}
-  table{width:100%;border-collapse:collapse}
-  th{text-align:left;padding:8px 12px;color:#64748b;font-weight:600;font-size:12px;border-bottom:1px solid #334155}
-  td{padding:10px 12px;border-bottom:1px solid #1e293b;font-size:13px}
-  tr:hover td{background:#1e293b}
-  .tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600}
-  .tag.new{background:#065f46;color:#6ee7b7}
-  .tag.dropped{background:#7c2d12;color:#fca5a5}
-  .item-img{width:50px;height:50px;object-fit:cover;border-radius:6px;background:#334155}
-  .price-old{text-decoration:line-through;color:#64748b;margin-right:4px;font-size:12px}
-  .price-drop{color:#f87171;font-size:12px}
-  .chat-msg{padding:8px 12px;border-radius:8px;margin:4px 0;max-width:80%;font-size:13px;line-height:1.5}
-  .chat-msg.in{background:#1e3a5f;align-self:flex-start;margin-right:auto}
-  .chat-msg.out{background:#0f4a2e;align-self:flex-end;margin-left:auto}
-  .chat-container{max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-  .loading{text-align:center;padding:40px;color:#64748b}
-  .empty{text-align:center;padding:40px;color:#475569}
-  .toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:999;animation:fadeIn .3s}
-  .toast.success{background:#065f46}.toast.error{background:#7c2d12}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-  .hidden{display:none}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f8; color: #333; }
+.header { background: linear-gradient(135deg, #ff5000, #ff7a45); color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 20px; }
+.tabs { display: flex; background: #fff; border-bottom: 1px solid #e5e5e5; padding: 0 24px; }
+.tab { padding: 12px 24px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 14px; color: #666; }
+.tab:hover { color: #ff5000; }
+.tab.active { color: #ff5000; border-bottom-color: #ff5000; font-weight: 600; }
+.panel { display: none; padding: 24px; }
+.panel.active { display: block; }
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.card h3 { margin-bottom: 12px; font-size: 16px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat-card { background: #fff; border-radius: 8px; padding: 16px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.stat-card .value { font-size: 32px; font-weight: 700; color: #ff5000; }
+.stat-card .label { font-size: 12px; color: #999; margin-top: 4px; }
+.btn { display: inline-block; padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: .2s; }
+.btn-primary { background: #ff5000; color: #fff; }
+.btn-primary:hover { background: #e04800; }
+.btn-danger { background: #ff4d4f; color: #fff; }
+.btn-danger:hover { background: #e04343; }
+.btn-outline { border: 1px solid #d9d9d9; background: #fff; }
+.btn-outline:hover { border-color: #ff5000; color: #ff5000; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+th { color: #999; font-weight: 500; background: #fafafa; }
+input, select { padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+input:focus { outline: none; border-color: #ff5000; box-shadow: 0 0 0 2px rgba(255,80,0,.1); }
+.flex { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+.tag-green { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.tag-red { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+.tag-blue { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+.tag-orange { background: #fff7e6; color: #fa8c16; border: 1px solid #ffd591; }
+.msg-list { max-height: 500px; overflow-y: auto; background: #fafafa; border-radius: 6px; padding: 12px; }
+.msg-item { margin-bottom: 8px; padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+.msg-in { background: #fff; border: 1px solid #e5e5e5; }
+.msg-out { background: #e6f7ff; border: 1px solid #91d5ff; text-align: right; }
+.msg-system { background: #fff7e6; border: 1px solid #ffd591; font-weight: 500; }
+textarea { width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 13px; font-family: monospace; resize: vertical; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.on { background: #52c41a; }
+.status-dot.off { background: #d9d9d9; }
 </style>
 </head>
 <body>
+
 <div class="header">
-  <h1>🐟 闲鱼 AI 助手 v0.2</h1>
-  <span id="status-bar" style="font-size:13px;color:#94a3b8">加载中...</span>
+  <h1>🐟 闲鱼 AI 智能助手</h1>
+  <span style="font-size: 12px; opacity:.7">v0.3</span>
+  <div style="margin-left:auto;font-size:12px;opacity:.7" id="headerStatus">加载中...</div>
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('monitor')">🔍 商品监控</div>
-  <div class="tab" onclick="switchTab('cs')">💬 智能客服</div>
+  <div class="tab active" onclick="switchTab('monitor')">📊 商品监控</div>
+  <div class="tab" onclick="switchTab('chat')">💬 智能客服</div>
+  <div class="tab" onclick="switchTab('accounts')">👤 账号与运营</div>
 </div>
 
-<div class="container">
+<!-- ================== 监控 Tab ================== -->
+<div id="monitor" class="panel active">
+  <div class="stats">
+    <div class="stat-card"><div class="value" id="statKeywords">0</div><div class="label">监控关键词</div></div>
+    <div class="stat-card"><div class="value" id="statItems">0</div><div class="label">已收录商品</div></div>
+    <div class="stat-card"><div class="value"><span id="statMonitor"></span></div><div class="label">监控状态</div></div>
+    <div class="stat-card"><div class="value" id="statInterval">300s</div><div class="label">扫描间隔</div></div>
+  </div>
 
-<!-- ==================== 监控 Tab ==================== -->
-<div id="tab-monitor">
+  <div class="card">
+    <h3>➕ 添加关键词</h3>
+    <div class="flex">
+      <input id="kwInput" placeholder="输入商品关键词，如: iPhone 16" style="flex:1">
+      <input id="kwPrice" placeholder="最高价格(元)" type="number" style="width:140px">
+      <button class="btn btn-primary" onclick="addKeyword()">添加</button>
+      <button class="btn btn-primary" onclick="scanNow()">🔍 立即扫描</button>
+    </div>
+  </div>
 
-<div class="stats">
-  <div class="stat-card"><div class="value blue" id="s-kw">0</div><div class="label">监控关键词</div></div>
-  <div class="stat-card"><div class="value green" id="s-items">0</div><div class="label">已采集商品</div></div>
-</div>
-
-<div class="card">
-  <h2>🔍 添加监控关键词</h2>
-  <div class="input-group" style="max-width:500px">
-    <input id="kw-input" placeholder="搜索关键词，如 iPhone 15" />
-    <button onclick="addKeyword()">添加</button>
-    <button class="gray" onclick="triggerScan()">立即扫描</button>
+  <div class="card">
+    <h3>关键词列表</h3>
+    <table>
+      <thead><tr><th>关键词</th><th>最高价</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="kwTable"></tbody>
+    </table>
   </div>
 </div>
 
-<div class="card">
-  <h2>📋 监控列表</h2>
-  <div id="kw-list"><div class="loading">加载中...</div></div>
-</div>
+<!-- ================== 客服 Tab ================== -->
+<div id="chat" class="panel">
+  <div class="card">
+    <div class="flex" style="justify-content:space-between">
+      <div>
+        <h3>🤖 智能客服状态</h3>
+        <div style="font-size:13px;color:#666;margin-top:4px" id="csInfo">--</div>
+      </div>
+      <div>
+        <button class="btn btn-primary" id="csStartBtn" onclick="startCS()">启动客服</button>
+        <button class="btn btn-danger" id="csStopBtn" onclick="stopCS()">停止</button>
+      </div>
+    </div>
+  </div>
 
-<div class="card">
-  <h2>📦 商品列表</h2>
-  <div id="item-list"><div class="empty">选择关键词查看商品</div></div>
-</div>
-</div>
-
-<!-- ==================== 客服 Tab ==================== -->
-<div id="tab-cs" class="hidden">
-
-<div class="stats">
-  <div class="stat-card"><div class="value blue" id="cs-msgs">0</div><div class="label">今日消息</div></div>
-</div>
-
-<div class="card">
-  <h2>💬 客服控制</h2>
-  <div class="flex">
-    <button class="green" id="btn-cs-start" onclick="csStart()">▶ 启动客服</button>
-    <button class="red" id="btn-cs-stop" onclick="csStop()">⏹ 停止</button>
-    <span id="cs-status-text" style="font-size:14px;color:#64748b">未启动</span>
+  <div class="card">
+    <h3>📨 实时消息（最近50条）</h3>
+    <div class="msg-list" id="msgList">暂无消息</div>
+    <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="refreshMessages()">刷新</button>
   </div>
 </div>
 
-<div class="card">
-  <h2>📩 消息记录</h2>
-  <div class="chat-container" id="chat-log"><div class="empty">启动客服后这里会显示实时消息</div></div>
-</div>
-</div>
+<!-- ================== 账号与运营 Tab ================== -->
+<div id="accounts" class="panel">
+  <div class="card">
+    <h3>➕ 添加账号</h3>
+    <div class="flex">
+      <input id="accId" placeholder="账号 ID" style="width:140px">
+      <input id="accName" placeholder="备注名" style="width:140px">
+      <textarea id="accCookies" placeholder="Cookie 字符串（从 login.py 获取）" style="flex:1"></textarea>
+      <button class="btn btn-primary" onclick="addAccount()">添加</button>
+    </div>
+  </div>
 
-</div>
+  <div class="card">
+    <h3>账号列表</h3>
+    <table>
+      <thead><tr><th>ID</th><th>备注</th><th>默认</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody id="accTable"></tbody>
+    </table>
+  </div>
 
-<div id="toast-container"></div>
+  <div class="card">
+    <h3>⚡ 自动运营</h3>
+    <div class="flex" style="justify-content:space-between">
+      <div>
+        <span class="status-dot" id="refreshDot"></span>
+        <span id="refreshLabel">自动擦亮：--</span>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="triggerRefresh()">立即擦亮</button>
+    </div>
+    <div style="font-size:12px;color:#999;margin-top:8px">默认每 6 小时自动刷新所有商品，保持曝光排名</div>
+  </div>
+</div>
 
 <script>
-const API='';
-let currentTab='monitor';
-let csPollTimer=null;
+const API = '/api';
+let currentTab = 'monitor';
+let pollTimer = null;
 
-function toast(m,t='success'){
-  const e=document.createElement('div');e.className=`toast ${t}`;e.textContent=m;
-  document.getElementById('toast-container').appendChild(e);setTimeout(()=>e.remove(),3000);
-}
-async function api(url,o={}){
-  try{const r=await fetch(API+url,{headers:{'Content-Type':'application/json'},...o});
-  if(!r.ok)throw new Error(await r.text());return await r.json();}
-  catch(e){toast(e.message,'error');throw e;}
-}
-function switchTab(t){
-  currentTab=t;
-  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(i===0&&t==='monitor')||(i===1&&t==='cs')));
-  document.getElementById('tab-monitor').classList.toggle('hidden',t!=='monitor');
-  document.getElementById('tab-cs').classList.toggle('hidden',t!=='cs');
-  if(t==='monitor'){loadStatus();loadKeywords();}
-  if(t==='cs'){csLoadStatus();csLoadMessages();csPollTimer=setInterval(()=>{csLoadStatus();csLoadMessages();},5000);}
-  else{if(csPollTimer){clearInterval(csPollTimer);csPollTimer=null;}}
+// === Tab 切换 ===
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab:nth-child(${{monitor:1,chat:2,accounts:3}[name]})`).classList.add('active');
+  document.getElementById(name).classList.add('active');
+  currentTab = name;
+  if (name === 'chat') loadCSStatus();
+  if (name === 'accounts') { loadAccounts(); loadRefreshStatus(); }
 }
 
-// ==================== 监控 ====================
-async function loadStatus(){
-  try{const d=await api('/api/status');
-    document.getElementById('s-kw').textContent=d.keywords?.length||0;
-    document.getElementById('s-items').textContent=d.keywords?.reduce((s,k)=>s+(k.item_count||0),0)||0;
-    document.getElementById('status-bar').innerHTML=`<span class="status-dot ${d.monitor_running?'on':'off'}"></span> 监控${d.monitor_running?'运行中':'未运行'} | 客服${d.cs_running?'运行中':'未启动'}`;
-  }catch(e){}
-}
-async function loadKeywords(){
-  try{const d=await api('/api/keywords');const el=document.getElementById('kw-list');
-    if(!d.length){el.innerHTML='<div class="empty">还没有关键词，在上方添加</div>';return;}
-    el.innerHTML=`<table><thead><tr><th>关键词</th><th>状态</th><th>操作</th></tr></thead><tbody>${d.map(k=>`
-      <tr><td><a href="#" onclick="loadItems('${k.keyword}');return false" style="color:#38bdf8;text-decoration:none">${k.keyword}</a></td>
-      <td>${k.enabled?'✅':'⏸'}</td>
-      <td class="flex"><button class="gray" style="padding:4px 8px;font-size:12px" onclick="toggleKW('${k.keyword}',${!k.enabled})">${k.enabled?'暂停':'启用'}</button>
-      <button class="red" style="padding:4px 8px;font-size:12px" onclick="deleteKW('${k.keyword}')">删除</button></td></tr>`).join('')}</tbody></table>`;
-  }catch(e){}
-}
-async function addKeyword(){
-  const kw=document.getElementById('kw-input').value.trim();if(!kw)return;
-  await api('/api/keywords',{method:'POST',body:JSON.stringify({keyword:kw})});
-  document.getElementById('kw-input').value='';toast(`已添加: ${kw}`);loadKeywords();loadStatus();
-}
-async function deleteKW(k){if(!confirm(`删除 "${k}"？`))return;await api(`/api/keywords/${encodeURIComponent(k)}`,{method:'DELETE'});toast('已删除');loadKeywords();}
-async function toggleKW(k,e){await api(`/api/keywords/${encodeURIComponent(k)}/toggle?enabled=${e}`,{method:'PUT'});toast(`${k} ${e?'启用':'暂停'}`);loadKeywords();}
-async function triggerScan(){toast('扫描中...');await api('/api/scan',{method:'POST'});toast('扫描完成');loadKeywords();}
-async function loadItems(kw){
-  const el=document.getElementById('item-list');
-  try{const d=await api(`/api/items?keyword=${encodeURIComponent(kw)}&limit=30`);
-    if(!d.length){el.innerHTML='<div class="empty">暂无数据，点「立即扫描」</div>';return;}
-    el.innerHTML=`<table><thead><tr><th></th><th>标题</th><th>价格</th><th>卖家</th><th>状态</th></tr></thead><tbody>${d.map(it=>`
-      <tr><td>${it.image_url?`<img class="item-img" src="${it.image_url}" loading="lazy" onerror="this.style.display='none'">`:''}</td>
-      <td><a href="${it.item_url}" target="_blank" style="color:#e2e8f0;text-decoration:none">${(it.title||'').substring(0,45)}</a></td>
-      <td>${it.price_dropped?`<span class="price-old">¥${it.old_price}</span>`:''}¥${it.price}${it.price_dropped?`<span class="price-drop">-¥${it.price_drop_amount}</span>`:''}</td>
-      <td>${it.seller||'?'}</td>
-      <td>${it.is_new?'<span class="tag new">新品</span>':it.price_dropped?'<span class="tag dropped">降价</span>':''}</td></tr>`).join('')}</tbody></table>`;
-  }catch(e){}
+// === 监控 Tab ===
+async function loadMonitor() {
+  try {
+    const [kw, status] = await Promise.all([
+      fetch(API + '/keywords').then(r => r.json()),
+      fetch(API + '/status').then(r => r.json()),
+    ]);
+    document.getElementById('statKeywords').textContent = kw.length;
+    document.getElementById('statMonitor').innerHTML = status.monitor_running
+      ? '<span class="tag tag-green">运行中</span>'
+      : '<span class="tag tag-red">未启动</span>';
+    document.getElementById('statInterval').textContent = (status.interval_s || 300) + 's';
+
+    let items = 0;
+    const rows = kw.map(k => {
+      items += k.enabled ? 1 : 0;
+      return `<tr>
+        <td>${k.keyword}</td>
+        <td>¥${k.max_price || '--'}</td>
+        <td>${k.enabled ? '<span class="tag tag-green">启用</span>' : '<span class="tag tag-red">停用</span>'}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="toggleKW('${k.keyword}',${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteKW('${k.keyword}')">删除</button>
+        </td></tr>`;
+    }).join('');
+    document.getElementById('kwTable').innerHTML = rows || '<tr><td colspan="4" style="color:#999">暂无关键词</td></tr>';
+    document.getElementById('statItems').textContent = items;
+  } catch(e) { console.error(e); }
 }
 
-// ==================== 智能客服 ====================
-async function csLoadStatus(){
-  try{const d=await api('/api/cs/status');
-    document.getElementById('cs-msgs').textContent=d.message_count||0;
-    document.getElementById('cs-status-text').textContent=d.running?'运行中':'未启动';
-    document.getElementById('btn-cs-start').disabled=d.running;
-    document.getElementById('btn-cs-stop').disabled=!d.running;
-    document.getElementById('status-bar').innerHTML=d.running
-      ?'<span class="status-dot on"></span> 监控运行中 | <span class="status-dot on"></span> 客服运行中'
-      :'<span class="status-dot on"></span> 监控运行中 | <span class="status-dot off"></span> 客服未启动';
-  }catch(e){}
+async function addKeyword() {
+  const keyword = document.getElementById('kwInput').value.trim();
+  const price = document.getElementById('kwPrice').value;
+  if (!keyword) return alert('请输入关键词');
+  await fetch(API + '/keywords', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({keyword, max_price: parseFloat(price) || 0, enabled: true}),
+  });
+  document.getElementById('kwInput').value = '';
+  document.getElementById('kwPrice').value = '';
+  loadMonitor();
 }
-async function csLoadMessages(){
-  try{const d=await api('/api/cs/messages?limit=50');const el=document.getElementById('chat-log');
-    if(!d.length){el.innerHTML='<div class="empty">暂无消息</div>';return;}
-    el.innerHTML=d.map(m=>`<div class="chat-msg ${m.direction}"><strong>${m.sender_name}</strong><br>${m.content}</div>`).join('');
-    el.scrollTop=el.scrollHeight;
-  }catch(e){}
-}
-async function csStart(){await api('/api/cs/start',{method:'POST'});toast('客服已启动');csLoadStatus();}
-async function csStop(){await api('/api/cs/stop',{method:'POST'});toast('客服已停止');csLoadStatus();}
 
-// 初始化
-loadStatus();loadKeywords();
+async function deleteKW(kw) {
+  await fetch(API + '/keywords/' + encodeURIComponent(kw), {method:'DELETE'});
+  loadMonitor();
+}
+
+async function toggleKW(kw, enable) {
+  await fetch(API + '/keywords/' + encodeURIComponent(kw) + '/toggle?enabled=' + enable, {method:'PUT'});
+  loadMonitor();
+}
+
+async function scanNow() {
+  const btn = event.target;
+  btn.textContent = '扫描中...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(API + '/scan', {method:'POST'});
+    const data = await r.json();
+    alert('扫描完成！');
+    loadMonitor();
+  } catch(e) { alert('扫描失败: ' + e); }
+  btn.textContent = '🔍 立即扫描';
+  btn.disabled = false;
+}
+
+// === 客服 Tab ===
+async function loadCSStatus() {
+  try {
+    const [status, msgs] = await Promise.all([
+      fetch(API + '/cs/status').then(r => r.json()),
+      fetch(API + '/cs/messages').then(r => r.json()),
+    ]);
+    const running = status.running;
+    document.getElementById('csInfo').innerHTML = running
+      ? `已连接 · ID: ${status.my_id} · 消息: ${status.message_count}条`
+      : '未启动';
+    document.getElementById('csStartBtn').style.display = running ? 'none' : '';
+    document.getElementById('csStopBtn').style.display = running ? '' : 'none';
+
+    if (msgs.length === 0) {
+      document.getElementById('msgList').innerHTML = '<div style="color:#999;text-align:center;padding:20px">暂无消息</div>';
+    } else {
+      document.getElementById('msgList').innerHTML = msgs.reverse().map(m => {
+        let cls = 'msg-system';
+        if (m.direction === 'in') cls = 'msg-in';
+        else if (m.direction === 'out') cls = 'msg-out';
+        let extra = '';
+        if (m.order_status) extra = `<span class="tag tag-orange">${m.order_status}</span> `;
+        if (m.auto_action) extra = `<span class="tag tag-blue">${m.auto_action}</span> `;
+        return `<div class="msg-item ${cls}">
+          <strong>${m.sender_name}</strong> <span style="color:#999;font-size:11px">${new Date(m.time).toLocaleTimeString()}</span>
+          ${extra}<br>${m.content}
+        </div>`;
+      }).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function startCS() {
+  try {
+    await fetch(API + '/cs/start', {method:'POST'});
+    loadCSStatus();
+  } catch(e) { alert('启动失败'); }
+}
+
+async function stopCS() {
+  try {
+    await fetch(API + '/cs/stop', {method:'POST'});
+    loadCSStatus();
+  } catch(e) { alert('停止失败'); }
+}
+
+async function refreshMessages() { loadCSStatus(); }
+
+// === 账号 Tab ===
+async function loadAccounts() {
+  try {
+    const accounts = await fetch(API + '/accounts').then(r => r.json());
+    if (accounts.length === 0) {
+      document.getElementById('accTable').innerHTML = '<tr><td colspan="5" style="color:#999">暂无账号，请通过 login.py 登录获取 Cookie 后添加</td></tr>';
+    } else {
+      document.getElementById('accTable').innerHTML = accounts.map(a => `<tr>
+        <td>${a.id}</td>
+        <td>${a.name || '--'}</td>
+        <td>${a.is_default ? '<span class="tag tag-green">默认</span>' : ''}</td>
+        <td>${a.enabled ? '<span class="tag tag-green">启用</span>' : '<span class="tag tag-red">停用</span>'}</td>
+        <td>
+          ${!a.is_default ? `<button class="btn btn-outline btn-sm" onclick="setDefaultAcc('${a.id}')">设默认</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="toggleAcc('${a.id}',${!a.enabled})">${a.enabled?'停用':'启用'}</button>
+          <button class="btn btn-danger btn-sm" onclick="delAccount('${a.id}')">删除</button>
+        </td></tr>`).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function addAccount() {
+  const id = document.getElementById('accId').value.trim();
+  const name = document.getElementById('accName').value.trim();
+  const cookies = document.getElementById('accCookies').value.trim();
+  if (!id || !cookies) return alert('请填写账号ID和Cookie');
+  const r = await fetch(API + '/accounts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({id, name, cookies, enabled:true, is_default:false}),
+  });
+  if (r.ok) {
+    document.getElementById('accId').value = '';
+    document.getElementById('accName').value = '';
+    document.getElementById('accCookies').value = '';
+    loadAccounts();
+  } else {
+    const err = await r.json();
+    alert('添加失败: ' + (err.detail || r.statusText));
+  }
+}
+
+async function setDefaultAcc(id) {
+  await fetch(API + '/accounts/' + id + '/set-default', {method:'POST'});
+  loadAccounts();
+}
+
+async function delAccount(id) {
+  if (!confirm('确定删除账号 ' + id + '?')) return;
+  await fetch(API + '/accounts/' + id, {method:'DELETE'});
+  loadAccounts();
+}
+
+async function toggleAcc(id, enable) {
+  await fetch(API + '/accounts/' + id, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled: enable})});
+  loadAccounts();
+}
+
+async function loadRefreshStatus() {
+  try {
+    const status = await fetch(API + '/refresh/status').then(r => r.json());
+    const dot = document.getElementById('refreshDot');
+    dot.className = 'status-dot ' + (status.running ? 'on' : 'off');
+    document.getElementById('refreshLabel').textContent = '自动擦亮：' + (status.running ? `运行中（${status.interval_minutes}分钟/次）` : '未启动');
+  } catch(e) { console.error(e); }
+}
+
+async function triggerRefresh() {
+  const btn = event.target;
+  btn.textContent = '擦亮中...';
+  btn.disabled = true;
+  try {
+    const r = await fetch(API + '/refresh/now', {method:'POST'});
+    const data = await r.json();
+    alert(`擦亮完成！成功: ${data.success}, 失败: ${data.failed}`);
+    loadRefreshStatus();
+  } catch(e) { alert('擦亮失败: ' + e); }
+  btn.textContent = '立即擦亮';
+  btn.disabled = false;
+}
+
+// === 初始化 ===
+async function init() {
+  try {
+    const health = await fetch(API + '/health').then(r => r.json());
+    document.getElementById('headerStatus').textContent = 'API: ' + (health.status === 'ok' ? '✅ 在线' : '❌ 异常');
+    // 健康检查里也有 refresh_running
+  } catch(e) {
+    document.getElementById('headerStatus').textContent = 'API: ⚠️ 连接失败';
+  }
+  loadMonitor();
+}
+init();
+// 每 30 秒刷新一次
+setInterval(() => {
+  if (currentTab === 'monitor') loadMonitor();
+  if (currentTab === 'chat') loadCSStatus();
+}, 30000);
 </script>
 </body>
 </html>

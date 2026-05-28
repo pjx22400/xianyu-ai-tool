@@ -138,6 +138,7 @@ class XianyuWebSocket:
         self._ws: websockets.WebSocketClientProtocol | None = None
         self._running = False
         self._handlers: list[Handler] = []
+        self._order_handlers: list[Handler] = []
         self._http = httpx.AsyncClient(timeout=30)
 
     # --- Token ---
@@ -210,6 +211,10 @@ class XianyuWebSocket:
         """注册消息处理器"""
         self._handlers.append(handler)
 
+    def on_order(self, handler: Handler):
+        """注册订单状态处理器"""
+        self._order_handlers.append(handler)
+
     # --- 消息处理 ---
 
     @staticmethod
@@ -249,6 +254,38 @@ class XianyuWebSocket:
             )
         except Exception:
             return False
+
+    @staticmethod
+    def is_order_message(msg: dict) -> bool:
+        """检测是否为订单状态变更消息（付款/发货/确认收货等）"""
+        try:
+            key_3 = msg.get("3") or msg.get("3", {})
+            if isinstance(key_3, dict):
+                red = key_3.get("redReminder")
+                rtype = key_3.get("reminderType")
+                if red and "等待" in str(red):
+                    return True
+                if rtype in ("WAIT_SELLER_SEND_GOODS", "WAIT_BUYER_PAY",
+                             "WAIT_BUYER_CONFIRM_GOODS", "TRADE_CLOSED",
+                             "TRADE_FINISHED", "SELLER_SEND_GOODS"):
+                    return True
+            return False
+        except Exception:
+            return False
+
+    def extract_order_info(self, msg: dict) -> dict | None:
+        try:
+            key_3 = msg.get("3", {})
+            return {
+                "type": key_3.get("reminderType", "UNKNOWN"),
+                "status": key_3.get("redReminder", ""),
+                "order_id": key_3.get("orderId", ""),
+                "item_title": key_3.get("reminderTitle", ""),
+                "buyer_name": key_3.get("senderName", ""),
+                "create_time": int(msg.get("1", {}).get("5", 0)),
+            }
+        except Exception:
+            return None
 
     def extract_chat_info(self, msg: dict) -> dict | None:
         """从聊天消息中提取关键信息"""
@@ -354,6 +391,16 @@ class XianyuWebSocket:
             # 过滤非聊天消息
             if self.is_typing_status(decrypted):
                 continue
+
+            # 订单状态消息 -> 分发给 order_handlers
+            if self.is_order_message(decrypted):
+                order_info = self.extract_order_info(decrypted)
+                if order_info:
+                    logger.info(f"📦 订单更新: {order_info['status']} [{order_info['item_title']}]")
+                    for handler in self._order_handlers:
+                        await handler(order_info)
+                continue
+
             if not self.is_chat_message(decrypted):
                 continue
 
